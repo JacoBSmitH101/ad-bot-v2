@@ -42,6 +42,7 @@ export const data = new SlashCommandBuilder()
 
 export async function execute(interaction) {
     const sub = interaction.options.getSubcommand();
+    await interaction.deferReply({ ephemeral: true });
 
     if (sub === "create") {
         const name = interaction.options.getString("name", true);
@@ -51,7 +52,7 @@ export async function execute(interaction) {
             name,
         });
 
-        return interaction.reply(
+        return interaction.followUp(
             `✅ Created season **${season.name}** (status: \`${season.status}\`, id: \`${season.id}\`)`
         );
     }
@@ -60,7 +61,7 @@ export async function execute(interaction) {
         const season = await interaction.client.services.seasons.startSeason({
             guildId: interaction.guildId,
         });
-        await interaction.reply(
+        await interaction.followUp(
             `🚦 Season started: **${season.name}** (week 1)`
         );
     }
@@ -72,7 +73,7 @@ export async function execute(interaction) {
         if (closeAtStr) {
             const d = new Date(closeAtStr);
             if (Number.isNaN(d.getTime())) {
-                return interaction.reply({
+                return interaction.followUp({
                     content:
                         "❌ Invalid close_at. Use ISO like `2025-12-27T18:00:00Z`",
                     ephemeral: true,
@@ -86,7 +87,7 @@ export async function execute(interaction) {
             closeAt, // ISO string or null
         });
 
-        return interaction.reply(
+        return interaction.followUp(
             `📬 Signups are now **OPEN** for **${season.name}**` +
                 (season.signups_close_at
                     ? `\n⏳ Auto-close: <t:${Math.floor(
@@ -101,7 +102,7 @@ export async function execute(interaction) {
             guildId: interaction.guildId,
         });
 
-        return interaction.reply(
+        return interaction.followUp(
             `🔒 Signups are now **CLOSED** for **${season.name}**`
         );
     }
