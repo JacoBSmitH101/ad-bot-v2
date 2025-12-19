@@ -45,7 +45,11 @@ client.repos = {
     matches: new MatchRepository({ supabase }),
 };
 client.services = {
-    seasons: new SeasonService({ seasons: client.repos.seasons }),
+    seasons: new SeasonService({
+        seasons: client.repos.seasons,
+        matches: client.repos.matches,
+        signups: client.repos.signups,
+    }),
     signups: new SignupService({
         seasons: client.repos.seasons,
         players: client.repos.players,

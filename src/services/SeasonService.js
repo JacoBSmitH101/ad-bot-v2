@@ -4,8 +4,10 @@ export class SeasonService {
     /**
      * @param {{ seasons: any }} deps
      */
-    constructor({ seasons }) {
+    constructor({ seasons, signups, matches }) {
         this.seasons = seasons;
+        this.signups = signups;
+        this.matches = matches;
     }
 
     async startSeason({ guildId }) {

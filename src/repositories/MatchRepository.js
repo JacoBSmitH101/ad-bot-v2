@@ -45,4 +45,13 @@ export class MatchRepository {
         if (error) throw error;
         return data ?? [];
     }
+    async countForSeason(seasonId) {
+        const { count, error } = await this.supabase
+            .from("matches")
+            .select("*", { count: "exact", head: true })
+            .eq("season_id", seasonId);
+
+        if (error) throw error;
+        return count ?? 0;
+    }
 }
