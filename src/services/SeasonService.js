@@ -20,7 +20,14 @@ export class SeasonService {
         }
 
         // Make sure matches exist
-        const hasMatches = await this.seasons.hasMatches(season.id); // see below
+        const matchCount = await this.matches.countForSeason(season.id);
+        if (matchCount === 0) {
+            throw new DomainError(
+                "NO_SCHEDULE",
+                "No schedule found. Approve a schedule first."
+            );
+        }
+
         if (!hasMatches)
             throw new DomainError(
                 "NO_SCHEDULE",
