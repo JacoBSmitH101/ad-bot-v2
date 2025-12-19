@@ -73,37 +73,77 @@ export async function execute(interaction) {
                     ? "No matches for that week."
                     : "No matches scheduled yet.",
         });
-
         return interaction.reply({ embeds: [embed], ephemeral: true });
     }
 
-    // Build a readable list: "W1 — @A vs @B"
-    const lines = matches.map((m) => {
+    // Group matches by week
+    const byWeek = new Map();
+    for (const m of matches) {
+        const w = Number(m.week ?? 0);
+        if (!byWeek.has(w)) byWeek.set(w, []);
+        byWeek.get(w).push(m);
+    }
+
+    const weeks = [...byWeek.keys()].sort((a, b) => a - b);
+
+    // helper: display one match line nicely
+    function formatMatchLine(m) {
         const a = `<@${m.player_a_id}>`;
         const b = `<@${m.player_b_id}>`;
-        return `**W${m.week}** — ${a} vs ${b}`;
-    });
 
-    // Discord embed field value limit is 1024 chars; chunk if needed.
-    const chunks = [];
-    let current = "";
-    for (const line of lines) {
-        const candidate = current ? `${current}\n${line}` : line;
-        if (candidate.length > 950) {
-            chunks.push(current);
-            current = line;
+        // Show it as: "• vs @opponent"
+        // If you want, we can bold the opponent specifically later
+        return `• ${a} **vs** ${b}`;
+    }
+
+    // Build field chunks (each field <= 1024 chars)
+    const fields = [];
+    for (const w of weeks) {
+        const lines = byWeek.get(w).map(formatMatchLine);
+
+        let value = lines.join("\n");
+        const header = `Week ${w}`;
+
+        // If a single week field is too long, chunk it
+        if (value.length <= 1024) {
+            fields.push({ name: `🗓️ ${header}`, value });
         } else {
-            current = candidate;
+            // chunk within week
+            let current = "";
+            let part = 1;
+            for (const line of lines) {
+                const candidate = current ? `${current}\n${line}` : line;
+                if (candidate.length > 950) {
+                    fields.push({
+                        name: `🗓️ ${header} (part ${part})`,
+                        value: current,
+                    });
+                    part++;
+                    current = line;
+                } else {
+                    current = candidate;
+                }
+            }
+            if (current)
+                fields.push({
+                    name: `🗓️ ${header} (part ${part})`,
+                    value: current,
+                });
         }
     }
-    if (current) chunks.push(current);
 
-    chunks.forEach((chunk, i) => {
+    // Discord embeds max 25 fields.
+    // If you have loads of weeks, we should combine weeks into fewer fields.
+    // For MVP, we’ll just cap and tell them.
+    if (fields.length > 25) {
+        embed.addFields(fields.slice(0, 24));
         embed.addFields({
-            name: i === 0 ? "Matches" : "Matches (cont.)",
-            value: chunk,
+            name: "⚠️ Too many matches to display",
+            value: "Try `/mymatches week:<n>` to view a specific week.",
         });
-    });
+    } else {
+        embed.addFields(fields);
+    }
 
     return interaction.reply({ embeds: [embed], ephemeral: true });
 }
