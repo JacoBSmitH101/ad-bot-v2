@@ -30,9 +30,7 @@ export async function execute(interaction) {
 
     // Optional: only allow once schedule exists / season started
     // If you want to allow preview before start, remove this block.
-    if (
-        !["signups_closed", "in_progress", "completed"].includes(season.status)
-    ) {
+    if (!["signups_closed", "active", "completed"].includes(season.status)) {
         return interaction.reply({
             content:
                 "⏳ Matches aren’t available yet. The season needs a schedule first.",
