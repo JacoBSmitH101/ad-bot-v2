@@ -30,12 +30,6 @@ export class SeasonService {
             );
         }
 
-        if (!hasMatches)
-            throw new DomainError(
-                "NO_SCHEDULE",
-                "No schedule found. Approve a schedule first."
-            );
-
         return this.seasons.setSeasonInProgress(season.id);
     }
 
