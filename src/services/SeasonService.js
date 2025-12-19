@@ -8,6 +8,28 @@ export class SeasonService {
         this.seasons = seasons;
     }
 
+    async startSeason({ guildId }) {
+        const season = await this.seasons.getCurrentForGuild(guildId);
+        if (!season) throw new DomainError("NO_SEASON", "No season found.");
+
+        if (season.status !== "signups_closed") {
+            throw new DomainError(
+                "INVALID_STATE",
+                `Season must be signups_closed (current: ${season.status})`
+            );
+        }
+
+        // Make sure matches exist
+        const hasMatches = await this.seasons.hasMatches(season.id); // see below
+        if (!hasMatches)
+            throw new DomainError(
+                "NO_SCHEDULE",
+                "No schedule found. Approve a schedule first."
+            );
+
+        return this.seasons.setSeasonInProgress(season.id);
+    }
+
     /**
      * Create a season in draft state
      * @param {{ guildId: string, name: string }} input

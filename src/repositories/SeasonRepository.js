@@ -73,6 +73,20 @@ export class SeasonRepository {
         if (error) throw error;
         return data;
     }
+    async setSeasonInProgress(seasonId) {
+        const { data, error } = await this.supabase
+            .from("seasons")
+            .update({
+                status: "in_progress",
+                started_at: new Date().toISOString(),
+                current_week: 1,
+            })
+            .eq("id", seasonId)
+            .select("*")
+            .single();
+        if (error) throw error;
+        return data;
+    }
 
     /**
      * Get the most recent season for a guild (useful for MVP)

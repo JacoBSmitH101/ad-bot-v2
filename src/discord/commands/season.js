@@ -33,6 +33,11 @@ export const data = new SlashCommandBuilder()
         s
             .setName("signups-close")
             .setDescription("Close signups for the current season")
+    )
+    .addSubcommand((s) =>
+        s
+            .setName("start")
+            .setDescription("Start the current season (move to active)")
     );
 
 export async function execute(interaction) {
@@ -48,6 +53,15 @@ export async function execute(interaction) {
 
         return interaction.reply(
             `✅ Created season **${season.name}** (status: \`${season.status}\`, id: \`${season.id}\`)`
+        );
+    }
+
+    if (sub === "start") {
+        const season = await interaction.client.services.seasons.startSeason({
+            guildId: interaction.guildId,
+        });
+        await interaction.reply(
+            `🚦 Season started: **${season.name}** (week 1)`
         );
     }
 
