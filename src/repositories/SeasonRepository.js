@@ -77,7 +77,7 @@ export class SeasonRepository {
         const { data, error } = await this.supabase
             .from("seasons")
             .update({
-                status: "in_progress",
+                status: "active",
                 started_at: new Date().toISOString(),
                 current_week: 1,
             })
