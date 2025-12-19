@@ -41,7 +41,7 @@ export async function execute(interaction) {
 
     if (isUpdate) {
         embed.addFields({
-            name: "Previous Average WOOOO",
+            name: "Previous Average",
             value: `**${previousAvg}** → **${signup.avg_3dart}**`,
             inline: false,
         });
