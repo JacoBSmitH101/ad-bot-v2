@@ -1,0 +1,23 @@
+{
+  "name": "ad-bot-v2",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Discord-only darts league bot, rewritten cleanly with proper separation of concerns.\r Runs as a long-lived Node.js service on a Linux VM.",
+  "main": "index.js",
+  "directories": {
+    "doc": "docs"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "dev": "node scripts/registerCommands.js && node src/index.js",
+    "seed:fake": "node scripts/seedFakeSingups.js"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@supabase/supabase-js": "^2.89.0",
+    "discord.js": "^14.25.1",
+    "dotenv": "^17.2.3",
+    "zod": "^4.2.1"
+  }
+}
