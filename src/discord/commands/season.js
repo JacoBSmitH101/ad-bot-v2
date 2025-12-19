@@ -42,7 +42,7 @@ export const data = new SlashCommandBuilder()
 
 export async function execute(interaction) {
     const sub = interaction.options.getSubcommand();
-    await interaction.deferReply({ ephemeral: true });
+    await interaction.deferReply();
     console.log("DEFERRED");
 
     if (sub === "create") {
