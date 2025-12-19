@@ -1,0 +1,15 @@
+trigger:
+    branches:
+        include:
+            - dev
+
+pool:
+    name: home
+
+steps:
+    - checkout: none
+
+    - script: |
+          set -e
+          ssh -o StrictHostKeyChecking=accept-new jacob@192.168.10.214 "/home/jacob/Dev/deploy_dev.sh"
+      displayName: "Deploy to ad-bot VM via SSH"
