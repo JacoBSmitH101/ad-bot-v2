@@ -8,8 +8,39 @@ function fmtPlayer(id) {
 function medal(i) {
     return i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : "•";
 }
+function fmtPlayerInline(id) {
+    return id.startsWith("FAKE_") ? `\`${id}\`` : `<@${id}>`;
+}
 
-function buildSummaryEmbed({ seasonName, divisionName, standings }) {
+function normalizeMatchResult(match) {
+    const mrRaw = match.match_results;
+    const mr = Array.isArray(mrRaw) ? mrRaw[0] : mrRaw;
+    if (!mr) return null;
+    return {
+        legs_a: Number(mr.legs_a),
+        legs_b: Number(mr.legs_b),
+        proof_url: mr.proof_url ?? null,
+    };
+}
+
+function buildRankMap(rows) {
+    const map = new Map();
+    rows.forEach((r, i) => map.set(r.discordUserId, i + 1));
+    return map;
+}
+
+function arrow(delta) {
+    if (delta < 0) return `▲${Math.abs(delta)}`;
+    if (delta > 0) return `▼${delta}`;
+    return "—";
+}
+
+function buildSummaryEmbed({
+    seasonName,
+    divisionName,
+    standings,
+    lastUpdateText = null,
+}) {
     const lines = standings.map(
         (r, idx) =>
             `${medal(idx)} **${fmtPlayer(r.discordUserId)}** — **${
@@ -17,9 +48,13 @@ function buildSummaryEmbed({ seasonName, divisionName, standings }) {
             } pts**`
     );
 
+    const desc =
+        (lastUpdateText ? `${lastUpdateText}\n\n` : "") +
+        (lines.join("\n") || "_No players._");
+
     return new EmbedBuilder()
         .setTitle(`📊 ${seasonName} — ${divisionName}`)
-        .setDescription(lines.join("\n") || "_No players._")
+        .setDescription(desc)
         .setTimestamp();
 }
 
@@ -86,7 +121,7 @@ export class StandingsPublisherService {
      * Recompute standings and edit existing published messages.
      * Call this after every confirm.
      */
-    async refresh({ client, guildId }) {
+    async refresh({ client, guildId, context = null }) {
         const season = await this.seasons.getCurrentForGuild(guildId);
         if (!season) throw new DomainError("NO_SEASON", "No season found.");
 
@@ -106,7 +141,33 @@ export class StandingsPublisherService {
         const res = await this.standings.getStandingsForCurrentSeason({
             guildId,
         });
+        let beforeDivisionStandings = null;
+        let afterDivisionStandings = null;
+        let movementText = null;
 
+        if (
+            context?.divisionId &&
+            context?.beforeStandings &&
+            context?.afterStandings
+        ) {
+            beforeDivisionStandings = context.beforeStandings;
+            afterDivisionStandings = context.afterStandings;
+
+            const beforeMap = buildRankMap(beforeDivisionStandings);
+            const afterMap = buildRankMap(afterDivisionStandings);
+
+            const ids = [context.playerAId, context.playerBId].filter(Boolean);
+
+            const parts = ids.map((id) => {
+                const b = beforeMap.get(id);
+                const a = afterMap.get(id);
+                if (!b || !a) return `${fmtPlayerInline(id)}: —`;
+                const delta = a - b;
+                return `${fmtPlayerInline(id)} ${b}→**${a}** (${arrow(delta)})`;
+            });
+
+            movementText = parts.length ? parts.join(" • ") : null;
+        }
         let updated = 0;
 
         for (const d of res.divisions) {
@@ -117,10 +178,30 @@ export class StandingsPublisherService {
             const msg = await channel.messages.fetch(msgId).catch(() => null);
             if (!msg) continue;
 
+            let lastUpdateText = null;
+
+            if (context?.divisionId && d.division.id === context.divisionId) {
+                // Score line (from stored match result if provided)
+                const score = context.scoreText
+                    ? ` — ${context.scoreText}`
+                    : "";
+                const by = context.actorName
+                    ? ` (by ${context.actorName})`
+                    : "";
+
+                lastUpdateText = `🆕 **Last update:** ${fmtPlayerInline(
+                    context.playerAId
+                )} vs ${fmtPlayerInline(context.playerBId)}${score}${by}`;
+                if (movementText) {
+                    lastUpdateText += `\n📈 ${movementText}`;
+                }
+            }
+
             const embed = buildSummaryEmbed({
                 seasonName: res.season.name,
                 divisionName: d.division.name,
                 standings: d.standings,
+                lastUpdateText,
             });
 
             await msg.edit({ embeds: [embed] });
