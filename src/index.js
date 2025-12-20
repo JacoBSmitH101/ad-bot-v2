@@ -31,6 +31,8 @@ import { StandingsService } from "./services/StandingsService.js";
 import { handleStandingsButtons } from "./discord/handlers/standingsButtons.js";
 import { StandingsPublisherService } from "./services/StandingsPublisherService.js";
 import { MatchesService } from "./services/MatchesService.js";
+import { FixturesPublisherService } from "./services/FixturesPublisherService.js";
+
 async function dbPing() {
     const { error } = await supabase.from("seasons").select("id").limit(1);
     if (error) {
@@ -104,6 +106,11 @@ client.services = {
     matches: new MatchesService({
         matches: client.repos.matches,
         seasons: client.repos.seasons,
+    }),
+    fixturesPublisher: new FixturesPublisherService({
+        seasons: client.repos.seasons,
+        matches: client.repos.matches,
+        divisions: client.repos.divisions,
     }),
     config: {
         adminUserId: env.ADMIN_USER_ID ?? null,

@@ -1,0 +1,187 @@
+import { EmbedBuilder } from "discord.js";
+import { DomainError } from "../utils/DomainError.js";
+
+function fmtPlayer(id) {
+    return id.startsWith("FAKE_") ? `\`${id}\`` : `<@${id}>`;
+}
+
+function statusIcon(status) {
+    if (status === "confirmed") return "🟢";
+    if (status === "reported") return "🟠";
+    return "🗓️";
+}
+
+function normalizeMatchResult(match) {
+    const mrRaw = match.match_results;
+    const mr = Array.isArray(mrRaw) ? mrRaw[0] : mrRaw;
+    if (!mr) return null;
+    return {
+        legs_a: Number(mr.legs_a),
+        legs_b: Number(mr.legs_b),
+        proof_url: mr.proof_url ?? null,
+    };
+}
+
+export class FixturesPublisherService {
+    /**
+     * @param {{ seasons:any, matches:any, divisions:any }} deps
+     */
+    constructor({ seasons, matches, divisions }) {
+        this.seasons = seasons;
+        this.matches = matches;
+        this.divisions = divisions;
+    }
+
+    async publish({ client, guildId, channelId, week = null }) {
+        const season = await this.seasons.getCurrentForGuild(guildId);
+        if (!season) throw new DomainError("NO_SEASON", "No season found.");
+
+        if (!["active", "signups_closed", "closed"].includes(season.status)) {
+            throw new DomainError(
+                "INVALID_STATE",
+                `Fixtures publish not available in this season state (current: ${season.status})`
+            );
+        }
+
+        const channel = await client.channels
+            .fetch(channelId)
+            .catch(() => null);
+        if (!channel || !channel.isTextBased()) {
+            throw new DomainError(
+                "BAD_CHANNEL",
+                "That channel is not a text channel."
+            );
+        }
+
+        // default week: season.current_week, else 1
+        const targetWeek = Number(week ?? season.current_week ?? 1);
+        if (!Number.isInteger(targetWeek) || targetWeek < 1) {
+            throw new DomainError("INVALID_WEEK", "Week must be >= 1.");
+        }
+
+        // store config
+        await this.seasons.setFixturesChannel(season.id, channelId);
+        await this.seasons.setFixturesWeek(season.id, targetWeek);
+
+        // create placeholder message (we'll edit it immediately)
+        const msg = await channel.send({
+            content: "📅 Publishing fixtures...",
+        });
+        await this.seasons.setFixturesMessageId(season.id, msg.id);
+
+        // render
+        await this.refresh({ client, guildId });
+
+        return { season, channelId, messageId: msg.id, week: targetWeek };
+    }
+
+    async setWeek({ client, guildId, week }) {
+        const season = await this.seasons.getCurrentForGuild(guildId);
+        if (!season) throw new DomainError("NO_SEASON", "No season found.");
+
+        const targetWeek = Number(week);
+        if (!Number.isInteger(targetWeek) || targetWeek < 1) {
+            throw new DomainError("INVALID_WEEK", "Week must be >= 1.");
+        }
+
+        await this.seasons.setFixturesWeek(season.id, targetWeek);
+
+        // update immediately
+        await this.refresh({ client, guildId });
+
+        return { seasonId: season.id, week: targetWeek };
+    }
+
+    async refresh({ client, guildId }) {
+        const season = await this.seasons.getCurrentForGuild(guildId);
+        if (!season) throw new DomainError("NO_SEASON", "No season found.");
+
+        if (!season.fixtures_channel_id || !season.fixtures_message_id) {
+            // not published yet
+            return { updated: false, skipped: true };
+        }
+
+        const week = Number(season.fixtures_week ?? season.current_week ?? 1);
+
+        const channel = await client.channels
+            .fetch(season.fixtures_channel_id)
+            .catch(() => null);
+        if (!channel || !channel.isTextBased())
+            return { updated: false, skipped: true };
+
+        const msg = await channel.messages
+            .fetch(season.fixtures_message_id)
+            .catch(() => null);
+        if (!msg) return { updated: false, skipped: true };
+
+        // pull matches + divisions to label nicely
+        const matches = await this.matches.listForSeasonWeekWithResults({
+            seasonId: season.id,
+            week,
+        });
+
+        const divisions = await this.divisions.listForSeason(season.id);
+        const divNameById = new Map(divisions.map((d) => [d.id, d.name]));
+
+        // group by division
+        const byDiv = new Map();
+        for (const m of matches) {
+            if (!byDiv.has(m.division_id)) byDiv.set(m.division_id, []);
+            byDiv.get(m.division_id).push(m);
+        }
+
+        const embed = new EmbedBuilder()
+            .setTitle(`📅 Weekly Fixtures — ${season.name}`)
+            .setDescription(
+                `Showing **Week ${week}**\n🗓️ scheduled • 🟠 reported • 🟢 confirmed`
+            )
+            .setTimestamp();
+
+        if (matches.length === 0) {
+            embed.addFields({
+                name: `Week ${week}`,
+                value: "_No fixtures found for this week._",
+                inline: false,
+            });
+        } else {
+            const divIds = [...byDiv.keys()].sort((a, b) =>
+                String(divNameById.get(a) ?? a).localeCompare(
+                    divNameById.get(b) ?? b
+                )
+            );
+
+            for (const divId of divIds) {
+                const ms = byDiv.get(divId) ?? [];
+                const divName = divNameById.get(divId) ?? `Division ${divId}`;
+
+                const lines = ms.map((m) => {
+                    const icon = statusIcon(m.status);
+                    const mr = normalizeMatchResult(m);
+
+                    let score = "";
+                    let proof = "";
+
+                    if (mr) {
+                        score = ` — **${mr.legs_a}-${mr.legs_b}**`;
+                        if (mr.proof_url) proof = ` ([proof](${mr.proof_url}))`;
+                    }
+
+                    // show raw A vs B orientation; it’s “fixtures”, not personal view
+                    return `${icon} ${fmtPlayer(m.player_a_id)} vs ${fmtPlayer(
+                        m.player_b_id
+                    )}${score}${proof}`;
+                });
+
+                embed.addFields({
+                    name: divName,
+                    value: lines.join("\n"),
+                    inline: false,
+                });
+            }
+        }
+
+        await msg.edit({ content: "", embeds: [embed], components: [] });
+
+        return { updated: true, skipped: false };
+    }
+}

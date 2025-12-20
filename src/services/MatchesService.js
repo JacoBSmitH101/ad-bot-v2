@@ -101,7 +101,7 @@ export class MatchesService {
 
                         scorePart = ` — **${youLegs}-${themLegs}**`;
                         if (mr.proof_url)
-                            proofPart = ` ([proof](${mr.proof_url}))`;
+                            proofPart = ` ([Match Link](${mr.proof_url}))`;
                     }
 
                     const statusText =

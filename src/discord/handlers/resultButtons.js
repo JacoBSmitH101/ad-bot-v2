@@ -68,6 +68,10 @@ export async function handleResultButtons(interaction) {
                 client: interaction.client,
                 guildId: interaction.guildId,
             });
+            await interaction.client.services.fixturesPublisher.refresh({
+                client: interaction.client,
+                guildId: interaction.guildId,
+            });
 
             return true;
         }

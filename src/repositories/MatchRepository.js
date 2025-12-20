@@ -232,4 +232,30 @@ export class MatchRepository {
         if (error) throw error;
         return data ?? [];
     }
+    async listForSeasonWeekWithResults({ seasonId, week }) {
+        const { data, error } = await this.supabase
+            .from("matches")
+            .select(
+                `
+            id,
+            season_id,
+            division_id,
+            week,
+            player_a_id,
+            player_b_id,
+            status,
+            match_results (
+                legs_a,
+                legs_b,
+                proof_url
+            )
+        `
+            )
+            .eq("season_id", seasonId)
+            .eq("week", week)
+            .order("division_id", { ascending: true });
+
+        if (error) throw error;
+        return data ?? [];
+    }
 }
