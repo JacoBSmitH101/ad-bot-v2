@@ -35,14 +35,14 @@ if (!token) {
 }
 
 const client = new Client({ intents: [GatewayIntentBits.Guilds] });
-
+const schema = env.SUPABASE_DB_SCHEMA || "public";
 client.repos = {
-    seasons: new SeasonRepository({ supabase }),
-    players: new PlayersRepository({ supabase }),
-    signups: new SignupRepository({ supabase }),
-    divisions: new DivisionRepository({ supabase }),
-    schedules: new ScheduleRepository({ supabase }),
-    matches: new MatchRepository({ supabase }),
+    seasons: new SeasonRepository({ supabase, schema }),
+    players: new PlayersRepository({ supabase, schema }),
+    signups: new SignupRepository({ supabase, schema }),
+    divisions: new DivisionRepository({ supabase, schema }),
+    schedules: new ScheduleRepository({ supabase, schema }),
+    matches: new MatchRepository({ supabase, schema }),
 };
 client.services = {
     seasons: new SeasonService({

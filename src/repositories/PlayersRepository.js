@@ -1,6 +1,6 @@
 export class PlayersRepository {
-    constructor({ supabase }) {
-        this.supabase = supabase;
+    constructor({ supabase, schema }) {
+        this.supabase = supabase.schema(schema);
     }
 
     async upsert({ discordUserId, displayName }) {

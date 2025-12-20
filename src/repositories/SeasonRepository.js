@@ -2,8 +2,8 @@ export class SeasonRepository {
     /**
      * @param {{ supabase: any }} deps
      */
-    constructor({ supabase }) {
-        this.supabase = supabase;
+    constructor({ supabase, schema }) {
+        this.supabase = supabase.schema(schema);
     }
 
     /**

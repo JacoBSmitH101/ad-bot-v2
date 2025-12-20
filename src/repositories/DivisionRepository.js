@@ -1,6 +1,6 @@
 export class DivisionRepository {
-    constructor({ supabase }) {
-        this.supabase = supabase;
+    constructor({ supabase, schema }) {
+        this.supabase = supabase.schema(schema);
     }
 
     async createMany({ seasonId, count }) {
