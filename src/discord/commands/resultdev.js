@@ -1,5 +1,10 @@
 // src/discord/commands/resultdev.js
-import { SlashCommandBuilder, EmbedBuilder, MessageFlags } from "discord.js";
+import {
+    SlashCommandBuilder,
+    EmbedBuilder,
+    MessageFlags,
+    PermissionFlagsBits,
+} from "discord.js";
 import { DomainError } from "../../utils/DomainError.js";
 
 export const data = new SlashCommandBuilder()
@@ -22,7 +27,8 @@ export const data = new SlashCommandBuilder()
     )
     .addStringOption((opt) =>
         opt.setName("url").setDescription("Proof URL").setRequired(true)
-    );
+    )
+    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator);
 function validateAutodartsMatchUrl(url) {
     const regex =
         /^https:\/\/play\.autodarts\.io\/history\/matches\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
