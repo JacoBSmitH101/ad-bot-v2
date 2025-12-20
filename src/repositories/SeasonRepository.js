@@ -127,4 +127,36 @@ export class SeasonRepository {
         if (error) throw error;
         return data;
     }
+    async setFixturesChannel(seasonId, channelId) {
+        const { data, error } = await this.supabase
+            .from("seasons")
+            .update({ fixtures_channel_id: channelId })
+            .eq("id", seasonId)
+            .select("*")
+            .single();
+        if (error) throw error;
+        return data;
+    }
+
+    async setFixturesMessageId(seasonId, messageId) {
+        const { data, error } = await this.supabase
+            .from("seasons")
+            .update({ fixtures_message_id: messageId })
+            .eq("id", seasonId)
+            .select("*")
+            .single();
+        if (error) throw error;
+        return data;
+    }
+
+    async setFixturesWeek(seasonId, week) {
+        const { data, error } = await this.supabase
+            .from("seasons")
+            .update({ fixtures_week: week })
+            .eq("id", seasonId)
+            .select("*")
+            .single();
+        if (error) throw error;
+        return data;
+    }
 }

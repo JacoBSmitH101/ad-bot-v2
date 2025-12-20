@@ -38,6 +38,16 @@ export async function handleResultButtons(interaction) {
 
     try {
         if (action === "result_confirm") {
+            const matchBefore = await interaction.client.repos.matches.getById(
+                matchId
+            );
+            const before =
+                await interaction.client.services.standings.getDivisionStandings(
+                    {
+                        guildId: interaction.guildId,
+                        divisionId: matchBefore.division_id,
+                    }
+                );
             await interaction.client.services.results.confirm({
                 guildId: interaction.guildId,
                 adminDiscordUserId: interaction.user.id,
@@ -50,7 +60,36 @@ export async function handleResultButtons(interaction) {
             const match = await interaction.client.repos.matches.getById(
                 matchId
             );
+            const resultRow =
+                await interaction.client.repos.matchResults.getByMatchId(
+                    matchId
+                ); // add if you don’t have it
 
+            // standings AFTER (division)
+            const after =
+                await interaction.client.services.standings.getDivisionStandings(
+                    {
+                        guildId: interaction.guildId,
+                        divisionId: matchBefore.division_id,
+                    }
+                );
+
+            const scoreText = resultRow
+                ? `${resultRow.legs_a}-${resultRow.legs_b}`
+                : null;
+            await interaction.client.services.standingsPublisher.refresh({
+                client: interaction.client,
+                guildId: interaction.guildId,
+                context: {
+                    divisionId: matchBefore.division_id,
+                    playerAId: match.player_a_id,
+                    playerBId: match.player_b_id,
+                    scoreText,
+                    actorName: interaction.user.username,
+                    beforeStandings: before.standings,
+                    afterStandings: after.standings,
+                },
+            });
             await updatePlayerResultEmbed({
                 client: interaction.client,
                 match,
@@ -64,7 +103,7 @@ export async function handleResultButtons(interaction) {
                 components: [],
             });
 
-            await interaction.client.services.standingsPublisher.refresh({
+            await interaction.client.services.fixturesPublisher.refresh({
                 client: interaction.client,
                 guildId: interaction.guildId,
             });
