@@ -30,9 +30,9 @@ function buildRankMap(rows) {
 }
 
 function arrow(delta) {
-    if (delta < 0) return `▲${Math.abs(delta)}`;
-    if (delta > 0) return `▼${delta}`;
-    return "—";
+    if (delta < 0) return `🟢▲${Math.abs(delta)}`;
+    if (delta > 0) return `🔴▼${delta}`;
+    return "⚪—";
 }
 
 function buildSummaryEmbed({
