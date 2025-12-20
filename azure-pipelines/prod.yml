@@ -1,7 +1,7 @@
 trigger:
     branches:
         include:
-            - prod
+            - main
 
 pool:
     name: home
