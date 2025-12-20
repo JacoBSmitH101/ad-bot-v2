@@ -177,4 +177,31 @@ export class MatchRepository {
         if (error) throw error;
         return count ?? 0;
     }
+    async listConfirmedWithResultsForDivision({ seasonId, divisionId }) {
+        const { data, error } = await this.supabase
+            .from("matches")
+            .select(
+                `
+                id,
+                season_id,
+                division_id,
+                week,
+                player_a_id,
+                player_b_id,
+                status,
+                match_results (
+                    match_id,
+                    legs_a,
+                    legs_b,
+                    proof_url
+                )
+            `
+            )
+            .eq("season_id", seasonId)
+            .eq("division_id", divisionId)
+            .eq("status", "confirmed");
+
+        if (error) throw error;
+        return data ?? [];
+    }
 }

@@ -63,6 +63,12 @@ export async function handleResultButtons(interaction) {
                 content: "✅ Confirmed",
                 components: [],
             });
+
+            await interaction.client.services.standingsPublisher.refresh({
+                client: interaction.client,
+                guildId: interaction.guildId,
+            });
+
             return true;
         }
 

@@ -26,6 +26,10 @@ import { MatchResultsRepository } from "./repositories/MatchResultRepository.js"
 import { ResultService } from "./services/ResultService.js";
 import { ResultsNotifierService } from "./services/ResultsNotifierService.js";
 import { handleResultButtons } from "./discord/handlers/resultButtons.js";
+import { DivisionPlayersRepository } from "./repositories/DivisionPlayersRepository.js";
+import { StandingsService } from "./services/StandingsService.js";
+import { handleStandingsButtons } from "./discord/handlers/standingsButtons.js";
+import { StandingsPublisherService } from "./services/StandingsPublisherService.js";
 
 async function dbPing() {
     const { error } = await supabase.from("seasons").select("id").limit(1);
@@ -54,6 +58,7 @@ client.repos = {
     schedules: new ScheduleRepository({ supabase, schema }),
     matches: new MatchRepository({ supabase, schema }),
     matchResults: new MatchResultsRepository({ supabase, schema }),
+    divisionPlayers: new DivisionPlayersRepository({ supabase, schema }),
 };
 client.services = {
     resultsNotifier: new ResultsNotifierService({
@@ -89,10 +94,21 @@ client.services = {
         schedules: client.repos.schedules,
         matches: client.repos.matches,
     }),
+    standings: new StandingsService({
+        divisions: client.repos.divisions,
+        divisionPlayers: client.repos.divisionPlayers,
+        seasons: client.repos.seasons,
+        matchResults: client.repos.matchResults,
+        matches: client.repos.matches,
+    }),
     config: {
         adminUserId: env.ADMIN_USER_ID ?? null,
     },
 };
+client.services.standingsPublisher = new StandingsPublisherService({
+    standings: client.services.standings,
+    seasons: client.repos.seasons,
+});
 
 // Load commands (execute handlers) from files
 client.commands = new Collection();
@@ -123,8 +139,8 @@ client.once(Events.ClientReady, () => {
 
 client.on(Events.InteractionCreate, async (interaction) => {
     if (interaction.isButton()) {
-        const handled = await handleResultButtons(interaction);
-        if (handled) return;
+        if (await handleResultButtons(interaction)) return;
+        if (await handleStandingsButtons(interaction)) return;
     }
     if (!interaction.isChatInputCommand()) return;
 

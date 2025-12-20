@@ -110,4 +110,14 @@ export class DivisionRepository {
         if (error) throw error;
         return data ?? null;
     }
+    async listForSeason(seasonId) {
+        const { data, error } = await this.supabase
+            .from("divisions")
+            .select("*")
+            .eq("season_id", seasonId)
+            .order("sort_order", { ascending: true });
+
+        if (error) throw error;
+        return data ?? [];
+    }
 }
