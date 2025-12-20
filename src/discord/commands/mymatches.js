@@ -21,19 +21,6 @@ export async function execute(interaction) {
             )
             .setTimestamp();
 
-        if (next) {
-            const opp =
-                next.player_a_id === interaction.user.id
-                    ? next.player_b_id
-                    : next.player_a_id;
-
-            embed.addFields({
-                name: "Next up",
-                value: `Week **${next.week}** — vs <@${opp}>`,
-                inline: false,
-            });
-        }
-
         if (weeks.length === 0) {
             embed.addFields({
                 name: "No matches",

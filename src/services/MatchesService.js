@@ -63,7 +63,9 @@ export class MatchesService {
             .map((week) => {
                 const ms = byWeek.get(week);
 
-                const lines = ms.map((m) => {
+                const lines = ms.flatMap((m) => {
+                    const isNext = m.id === nextMatchId;
+
                     const opp =
                         m.player_a_id === discordUserId
                             ? m.player_b_id
@@ -72,7 +74,6 @@ export class MatchesService {
                     const icon = statusIcon(m.status);
                     const mr = normalizeMatchResult(m);
 
-                    // score formatting: show from YOUR perspective (you–them)
                     let scorePart = "";
                     let proofPart = "";
 
@@ -91,7 +92,6 @@ export class MatchesService {
                             proofPart = ` ([proof](${mr.proof_url}))`;
                     }
 
-                    // status text
                     const statusText =
                         m.status === "reported"
                             ? "reported"
@@ -99,19 +99,25 @@ export class MatchesService {
                             ? "confirmed"
                             : "scheduled";
 
-                    return `${icon} vs ${fmtPlayer(
+                    const line = `${icon} vs ${fmtPlayer(
                         opp
                     )}${scorePart}${proofPart} _(${statusText})_`;
+
+                    if (!isNext) return [line];
+
+                    // 👇 highlight next match ABOVE it
+                    return ["👉 **Next up**", line];
                 });
 
                 return { week, lines };
             });
 
-        // find “next match” (first not confirmed)
-        const next = matches
+        const nextMatch = matches
             .filter((m) => m.status !== "confirmed")
             .sort((a, b) => (a.week ?? 0) - (b.week ?? 0))[0];
 
-        return { season, weeks, next };
+        const nextMatchId = nextMatch?.id ?? null;
+
+        return { season, weeks };
     }
 }
