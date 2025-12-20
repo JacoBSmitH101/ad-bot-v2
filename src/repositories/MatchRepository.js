@@ -118,6 +118,34 @@ export class MatchRepository {
         if (error) throw error;
         return data;
     }
+    async listForPlayerInSeasonWithResults({ seasonId, discordUserId }) {
+        const { data, error } = await this.supabase
+            .from("matches")
+            .select(
+                `
+            id,
+            season_id,
+            division_id,
+            week,
+            player_a_id,
+            player_b_id,
+            status,
+            match_results (
+                legs_a,
+                legs_b,
+                proof_url
+            )
+        `
+            )
+            .eq("season_id", seasonId)
+            .or(
+                `player_a_id.eq.${discordUserId},player_b_id.eq.${discordUserId}`
+            )
+            .order("week", { ascending: true });
+
+        if (error) throw error;
+        return data ?? [];
+    }
 
     async markConfirmed({ matchId, confirmedBy }) {
         const now = new Date().toISOString();
