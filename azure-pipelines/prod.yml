@@ -11,5 +11,5 @@ steps:
 
     - script: |
           set -e
-          ssh -o StrictHostKeyChecking=accept-new jacob@192.168.10.214 "/home/jacob/Prod/prod.sh"
+          ssh -o StrictHostKeyChecking=accept-new jacob@192.168.10.214 "/home/jacob/Prod/deploy_prod.sh"
       displayName: "Deploy to ad-bot VM via SSH"
