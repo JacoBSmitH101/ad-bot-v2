@@ -4,8 +4,33 @@ export class SeasonService {
     /**
      * @param {{ seasons: any }} deps
      */
-    constructor({ seasons }) {
+    constructor({ seasons, signups, matches }) {
         this.seasons = seasons;
+        this.signups = signups;
+        this.matches = matches;
+    }
+
+    async startSeason({ guildId }) {
+        const season = await this.seasons.getCurrentForGuild(guildId);
+        if (!season) throw new DomainError("NO_SEASON", "No season found.");
+
+        if (season.status !== "signups_closed") {
+            throw new DomainError(
+                "INVALID_STATE",
+                `Season must be signups_closed (current: ${season.status})`
+            );
+        }
+
+        // Make sure matches exist
+        const matchCount = await this.matches.countForSeason(season.id);
+        if (matchCount === 0) {
+            throw new DomainError(
+                "NO_SCHEDULE",
+                "No schedule found. Approve a schedule first."
+            );
+        }
+
+        return this.seasons.setSeasonInProgress(season.id);
     }
 
     /**

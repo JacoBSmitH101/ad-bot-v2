@@ -2,7 +2,13 @@ import "dotenv/config";
 import fs from "fs";
 import path from "path";
 import { fileURLToPath, pathToFileURL } from "url";
-import { Client, Collection, GatewayIntentBits } from "discord.js";
+import {
+    Client,
+    Collection,
+    GatewayIntentBits,
+    Events,
+    MessageFlags,
+} from "discord.js";
 import { env } from "./config/env.js";
 import { supabase } from "./db/supabase.js";
 import { SeasonRepository } from "./repositories/SeasonRepository.js";
@@ -16,6 +22,14 @@ import { DivisionService } from "./services/DivisionService.js";
 import { ScheduleRepository } from "./repositories/ScheduleRepository.js";
 import { MatchRepository } from "./repositories/MatchRepository.js";
 import { ScheduleService } from "./services/ScheduleService.js";
+import { MatchResultsRepository } from "./repositories/MatchResultRepository.js";
+import { ResultService } from "./services/ResultService.js";
+import { ResultsNotifierService } from "./services/ResultsNotifierService.js";
+import { handleResultButtons } from "./discord/handlers/resultButtons.js";
+import { DivisionPlayersRepository } from "./repositories/DivisionPlayersRepository.js";
+import { StandingsService } from "./services/StandingsService.js";
+import { handleStandingsButtons } from "./discord/handlers/standingsButtons.js";
+import { StandingsPublisherService } from "./services/StandingsPublisherService.js";
 
 async function dbPing() {
     const { error } = await supabase.from("seasons").select("id").limit(1);
@@ -35,17 +49,35 @@ if (!token) {
 }
 
 const client = new Client({ intents: [GatewayIntentBits.Guilds] });
-
+const schema = env.SUPABASE_DB_SCHEMA || "public";
 client.repos = {
-    seasons: new SeasonRepository({ supabase }),
-    players: new PlayersRepository({ supabase }),
-    signups: new SignupRepository({ supabase }),
-    divisions: new DivisionRepository({ supabase }),
-    schedules: new ScheduleRepository({ supabase }),
-    matches: new MatchRepository({ supabase }),
+    seasons: new SeasonRepository({ supabase, schema }),
+    players: new PlayersRepository({ supabase, schema }),
+    signups: new SignupRepository({ supabase, schema }),
+    divisions: new DivisionRepository({ supabase, schema }),
+    schedules: new ScheduleRepository({ supabase, schema }),
+    matches: new MatchRepository({ supabase, schema }),
+    matchResults: new MatchResultsRepository({ supabase, schema }),
+    divisionPlayers: new DivisionPlayersRepository({ supabase, schema }),
 };
 client.services = {
-    seasons: new SeasonService({ seasons: client.repos.seasons }),
+    resultsNotifier: new ResultsNotifierService({
+        config: {
+            resultsReviewChannelId: env.RESULTS_REVIEW_CHANNEL ?? null,
+            adminUserId: env.ADMIN_USER_ID ?? null,
+        },
+    }),
+    results: new ResultService({
+        matches: client.repos.matches,
+        matchResults: client.repos.matchResults,
+        players: client.repos.players,
+        seasons: client.repos.seasons,
+    }),
+    seasons: new SeasonService({
+        seasons: client.repos.seasons,
+        matches: client.repos.matches,
+        signups: client.repos.signups,
+    }),
     signups: new SignupService({
         seasons: client.repos.seasons,
         players: client.repos.players,
@@ -62,7 +94,21 @@ client.services = {
         schedules: client.repos.schedules,
         matches: client.repos.matches,
     }),
+    standings: new StandingsService({
+        divisions: client.repos.divisions,
+        divisionPlayers: client.repos.divisionPlayers,
+        seasons: client.repos.seasons,
+        matchResults: client.repos.matchResults,
+        matches: client.repos.matches,
+    }),
+    config: {
+        adminUserId: env.ADMIN_USER_ID ?? null,
+    },
 };
+client.services.standingsPublisher = new StandingsPublisherService({
+    standings: client.services.standings,
+    seasons: client.repos.seasons,
+});
 
 // Load commands (execute handlers) from files
 client.commands = new Collection();
@@ -87,11 +133,15 @@ for (const file of commandFiles) {
     client.commands.set(mod.data.name, mod);
 }
 
-client.once("ready", () => {
+client.once(Events.ClientReady, () => {
     console.log(`✅ Logged in as ${client.user.tag}`);
 });
 
-client.on("interactionCreate", async (interaction) => {
+client.on(Events.InteractionCreate, async (interaction) => {
+    if (interaction.isButton()) {
+        if (await handleResultButtons(interaction)) return;
+        if (await handleStandingsButtons(interaction)) return;
+    }
     if (!interaction.isChatInputCommand()) return;
 
     const command = client.commands.get(interaction.commandName);
@@ -109,11 +159,11 @@ client.on("interactionCreate", async (interaction) => {
 
         if (interaction.deferred || interaction.replied) {
             await interaction
-                .followUp({ content: message, ephemeral: true })
+                .followUp({ content: message, flags: MessageFlags.Ephemeral })
                 .catch(() => {});
         } else {
             await interaction
-                .reply({ content: message, ephemeral: true })
+                .reply({ content: message, flags: MessageFlags.Ephemeral })
                 .catch(() => {});
         }
     }

@@ -1,6 +1,6 @@
 export class ScheduleRepository {
-    constructor({ supabase }) {
-        this.supabase = supabase;
+    constructor({ supabase, schema }) {
+        this.supabase = supabase.schema(schema);
     }
 
     async createProposal({ seasonId, createdBy, payload }) {

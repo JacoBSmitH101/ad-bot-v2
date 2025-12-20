@@ -1,6 +1,6 @@
 export class DivisionRepository {
-    constructor({ supabase }) {
-        this.supabase = supabase;
+    constructor({ supabase, schema }) {
+        this.supabase = supabase.schema(schema);
     }
 
     async createMany({ seasonId, count }) {
@@ -109,5 +109,15 @@ export class DivisionRepository {
 
         if (error) throw error;
         return data ?? null;
+    }
+    async listForSeason(seasonId) {
+        const { data, error } = await this.supabase
+            .from("divisions")
+            .select("*")
+            .eq("season_id", seasonId)
+            .order("sort_order", { ascending: true });
+
+        if (error) throw error;
+        return data ?? [];
     }
 }

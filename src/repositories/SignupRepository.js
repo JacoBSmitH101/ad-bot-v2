@@ -1,6 +1,6 @@
 export class SignupRepository {
-    constructor({ supabase }) {
-        this.supabase = supabase;
+    constructor({ supabase, schema }) {
+        this.supabase = supabase.schema(schema);
     }
 
     async upsertSignup({ seasonId, discordUserId, avg3dart }) {

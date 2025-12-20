@@ -2,8 +2,8 @@ export class SeasonRepository {
     /**
      * @param {{ supabase: any }} deps
      */
-    constructor({ supabase }) {
-        this.supabase = supabase;
+    constructor({ supabase, schema }) {
+        this.supabase = supabase.schema(schema);
     }
 
     /**
@@ -73,6 +73,20 @@ export class SeasonRepository {
         if (error) throw error;
         return data;
     }
+    async setSeasonInProgress(seasonId) {
+        const { data, error } = await this.supabase
+            .from("seasons")
+            .update({
+                status: "active",
+                started_at: new Date().toISOString(),
+                current_week: 1,
+            })
+            .eq("id", seasonId)
+            .select("*")
+            .single();
+        if (error) throw error;
+        return data;
+    }
 
     /**
      * Get the most recent season for a guild (useful for MVP)
@@ -89,5 +103,28 @@ export class SeasonRepository {
 
         if (error) throw error;
         return data ?? null;
+    }
+    async setStandingsChannel(seasonId, channelId) {
+        const { data, error } = await this.supabase
+            .from("seasons")
+            .update({ standings_channel_id: channelId })
+            .eq("id", seasonId)
+            .select("*")
+            .single();
+
+        if (error) throw error;
+        return data;
+    }
+
+    async setStandingsMessageIds(seasonId, messageIds) {
+        const { data, error } = await this.supabase
+            .from("seasons")
+            .update({ standings_message_ids: messageIds })
+            .eq("id", seasonId)
+            .select("*")
+            .single();
+
+        if (error) throw error;
+        return data;
     }
 }
