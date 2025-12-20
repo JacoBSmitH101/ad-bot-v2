@@ -1,4 +1,8 @@
-import { SlashCommandBuilder, PermissionFlagsBits } from "discord.js";
+import {
+    SlashCommandBuilder,
+    PermissionFlagsBits,
+    MessageFlags,
+} from "discord.js";
 
 export const data = new SlashCommandBuilder()
     .setName("season")
@@ -77,7 +81,7 @@ export async function execute(interaction) {
                 return interaction.editReply({
                     content:
                         "❌ Invalid close_at. Use ISO like `2025-12-27T18:00:00Z`",
-                    ephemeral: true,
+                    flags: MessageFlags.Ephemeral,
                 });
             }
             closeAt = d.toISOString();

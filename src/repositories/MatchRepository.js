@@ -1,6 +1,7 @@
 export class MatchRepository {
     constructor({ supabase, schema }) {
         this.supabase = supabase.schema(schema);
+        this.db = this.supabase;
     }
 
     async insertMany(rows) {
@@ -8,6 +9,128 @@ export class MatchRepository {
             .from("matches")
             .insert(rows)
             .select("*");
+
+        if (error) throw error;
+        return data;
+    }
+    async findOpenMatchesBetweenPlayers({ seasonId, userA, userB }) {
+        const { data, error } = await this.supabase
+            .from("matches")
+            .select("*")
+            .eq("season_id", seasonId)
+            .not("status", "in", "(confirmed,void)")
+            .or(
+                `and(player_a_id.eq.${userA},player_b_id.eq.${userB}),and(player_a_id.eq.${userB},player_b_id.eq.${userA})`
+            )
+            .order("week", { ascending: true });
+
+        if (error) throw error;
+        return data ?? [];
+    }
+
+    async getById(matchId) {
+        const { data, error } = await this.supabase
+            .from("matches")
+            .select("*")
+            .eq("id", matchId)
+            .single();
+
+        if (error) throw error;
+        return data;
+    }
+
+    async update(matchId, patch) {
+        const { data, error } = await this.supabase
+            .from("matches")
+            .update(patch)
+            .eq("id", matchId)
+            .select("*")
+            .single();
+
+        if (error) throw error;
+        return data;
+    }
+    async setResultMessage({ matchId, channelId, messageId }) {
+        const { data, error } = await this.supabase
+            .from("matches")
+            .update({
+                result_channel_id: channelId,
+                result_message_id: messageId,
+            })
+            .eq("id", matchId)
+            .select("*")
+            .single();
+
+        if (error) throw error;
+        return data;
+    }
+    async findByPlayersInSeason({ seasonId, userA, userB }) {
+        const { data, error } = await this.db
+            .from("matches")
+            .select("*")
+            .eq("season_id", seasonId)
+            .or(
+                `and(player_a_id.eq.${userA},player_b_id.eq.${userB}),and(player_a_id.eq.${userB},player_b_id.eq.${userA})`
+            )
+            .limit(1)
+            .maybeSingle();
+
+        if (error) throw error;
+        return data; // null if not found
+    }
+    // add inside your existing MatchesRepository
+    async getById(matchId) {
+        const { data, error } = await this.supabase
+            .from("matches")
+            .select("*")
+            .eq("id", matchId)
+            .single();
+
+        if (error) throw error;
+        return data;
+    }
+
+    async update(matchId, patch) {
+        const { data, error } = await this.supabase
+            .from("matches")
+            .update(patch)
+            .eq("id", matchId)
+            .select("*")
+            .single();
+
+        if (error) throw error;
+        return data;
+    }
+
+    async markReported({ matchId, reportedBy }) {
+        const now = new Date().toISOString();
+        const { data, error } = await this.db
+            .from("matches")
+            .update({
+                status: "reported",
+                reported_by: reportedBy,
+                reported_at: now,
+            })
+            .eq("id", matchId)
+            .select("*")
+            .single();
+
+        if (error) throw error;
+        return data;
+    }
+
+    async markConfirmed({ matchId, confirmedBy }) {
+        const now = new Date().toISOString();
+        const { data, error } = await this.db
+            .from("matches")
+            .update({
+                status: "confirmed",
+                confirmed_by: confirmedBy,
+                confirmed_at: now,
+            })
+            .eq("id", matchId)
+            .select("*")
+            .single();
 
         if (error) throw error;
         return data;

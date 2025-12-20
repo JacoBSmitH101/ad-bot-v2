@@ -2,7 +2,13 @@ import "dotenv/config";
 import fs from "fs";
 import path from "path";
 import { fileURLToPath, pathToFileURL } from "url";
-import { Client, Collection, GatewayIntentBits } from "discord.js";
+import {
+    Client,
+    Collection,
+    GatewayIntentBits,
+    Events,
+    MessageFlags,
+} from "discord.js";
 import { env } from "./config/env.js";
 import { supabase } from "./db/supabase.js";
 import { SeasonRepository } from "./repositories/SeasonRepository.js";
@@ -16,6 +22,10 @@ import { DivisionService } from "./services/DivisionService.js";
 import { ScheduleRepository } from "./repositories/ScheduleRepository.js";
 import { MatchRepository } from "./repositories/MatchRepository.js";
 import { ScheduleService } from "./services/ScheduleService.js";
+import { MatchResultsRepository } from "./repositories/MatchResultRepository.js";
+import { ResultService } from "./services/ResultService.js";
+import { ResultsNotifierService } from "./services/ResultsNotifierService.js";
+import { handleResultButtons } from "./discord/handlers/resultButtons.js";
 
 async function dbPing() {
     const { error } = await supabase.from("seasons").select("id").limit(1);
@@ -43,8 +53,21 @@ client.repos = {
     divisions: new DivisionRepository({ supabase, schema }),
     schedules: new ScheduleRepository({ supabase, schema }),
     matches: new MatchRepository({ supabase, schema }),
+    matchResults: new MatchResultsRepository({ supabase, schema }),
 };
 client.services = {
+    resultsNotifier: new ResultsNotifierService({
+        config: {
+            resultsReviewChannelId: env.RESULTS_REVIEW_CHANNEL ?? null,
+            adminUserId: env.ADMIN_USER_ID ?? null,
+        },
+    }),
+    results: new ResultService({
+        matches: client.repos.matches,
+        matchResults: client.repos.matchResults,
+        players: client.repos.players,
+        seasons: client.repos.seasons,
+    }),
     seasons: new SeasonService({
         seasons: client.repos.seasons,
         matches: client.repos.matches,
@@ -66,6 +89,9 @@ client.services = {
         schedules: client.repos.schedules,
         matches: client.repos.matches,
     }),
+    config: {
+        adminUserId: env.ADMIN_USER_ID ?? null,
+    },
 };
 
 // Load commands (execute handlers) from files
@@ -91,11 +117,15 @@ for (const file of commandFiles) {
     client.commands.set(mod.data.name, mod);
 }
 
-client.once("ready", () => {
+client.once(Events.ClientReady, () => {
     console.log(`✅ Logged in as ${client.user.tag}`);
 });
 
-client.on("interactionCreate", async (interaction) => {
+client.on(Events.InteractionCreate, async (interaction) => {
+    if (interaction.isButton()) {
+        const handled = await handleResultButtons(interaction);
+        if (handled) return;
+    }
     if (!interaction.isChatInputCommand()) return;
 
     const command = client.commands.get(interaction.commandName);
@@ -113,11 +143,11 @@ client.on("interactionCreate", async (interaction) => {
 
         if (interaction.deferred || interaction.replied) {
             await interaction
-                .followUp({ content: message, ephemeral: true })
+                .followUp({ content: message, flags: MessageFlags.Ephemeral })
                 .catch(() => {});
         } else {
             await interaction
-                .reply({ content: message, ephemeral: true })
+                .reply({ content: message, flags: MessageFlags.Ephemeral })
                 .catch(() => {});
         }
     }

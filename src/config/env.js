@@ -10,6 +10,8 @@ const EnvSchema = z.object({
     SUPABASE_SERVICE_ROLE_KEY: z.string().min(1),
 
     SUPABASE_DB_SCHEMA: z.string().optional(),
+    RESULTS_REVIEW_CHANNEL: z.string().optional(),
+    ADMIN_USER_ID: z.string().optional(),
 
     // optional for later
     ADMIN_ROLE_ID: z.string().optional(),

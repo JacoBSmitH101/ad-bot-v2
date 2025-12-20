@@ -1,4 +1,9 @@
-import { SlashCommandBuilder, EmbedBuilder } from "discord.js";
+import {
+    SlashCommandBuilder,
+    EmbedBuilder,
+    MessageFlags,
+    RoleFlags,
+} from "discord.js";
 
 export const data = new SlashCommandBuilder()
     .setName("mymatches")
@@ -24,7 +29,7 @@ export async function execute(interaction) {
     if (!season) {
         return interaction.reply({
             content: "❌ No season found for this server yet.",
-            ephemeral: true,
+            flags: MessageFlags.Ephemeral,
         });
     }
 
@@ -34,7 +39,7 @@ export async function execute(interaction) {
         return interaction.reply({
             content:
                 "⏳ Matches aren’t available yet. The season needs a schedule first.",
-            ephemeral: true,
+            flags: MessageFlags.Ephemeral,
         });
     }
 
@@ -73,7 +78,10 @@ export async function execute(interaction) {
                     ? "No matches for that week."
                     : "No matches scheduled yet.",
         });
-        return interaction.reply({ embeds: [embed], ephemeral: true });
+        return interaction.reply({
+            embeds: [embed],
+            flags: MessageFlags.Ephemeral,
+        });
     }
 
     // Group matches by week
@@ -145,5 +153,8 @@ export async function execute(interaction) {
         embed.addFields(fields);
     }
 
-    return interaction.reply({ embeds: [embed], ephemeral: true });
+    return interaction.reply({
+        embeds: [embed],
+        flags: MessageFlags.Ephemeral,
+    });
 }

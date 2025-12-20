@@ -2,6 +2,7 @@ import {
     SlashCommandBuilder,
     PermissionFlagsBits,
     EmbedBuilder,
+    MessageFlags,
 } from "discord.js";
 
 export const data = new SlashCommandBuilder()
@@ -20,7 +21,7 @@ export async function execute(interaction) {
     if (!season)
         return interaction.reply({
             content: "❌ No season found.",
-            ephemeral: true,
+            flags: MessageFlags.Ephemeral,
         });
 
     const grouped =
