@@ -59,6 +59,17 @@ export class ResultService {
 
         const match = this.#pickBestCandidate(candidates, discordUserId);
 
+        const submitterIsA = match.player_a_id === discordUserId;
+        const submitterIsB = match.player_b_id === discordUserId;
+
+        // safety: should always be true because we queried between the two, but keep it robust
+        if (!submitterIsA && !submitterIsB) {
+            throw new DomainError(
+                "NOT_IN_MATCH",
+                "You are not a player in this match."
+            );
+        }
+
         // don’t allow overwriting someone else’s report
         if (
             match.status === "reported" &&
@@ -71,11 +82,17 @@ export class ResultService {
             );
         }
 
-        // save scoreline
+        // ✅ Map submitter's "you/them" onto correct A–B orientation
+        // If submitter is A: (A,B) = (you,them)
+        // If submitter is B: (A,B) = (them,you)
+        const legsA = submitterIsA ? legsYou : legsThem;
+        const legsB = submitterIsA ? legsThem : legsYou;
+
+        // save scoreline (stored as A-B, always)
         const result = await this.matchResults.upsert({
             matchId: match.id,
-            legsA: legsYou,
-            legsB: legsThem,
+            legsA,
+            legsB,
             proofUrl,
         });
 
