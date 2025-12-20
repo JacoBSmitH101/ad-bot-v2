@@ -37,7 +37,7 @@ export async function execute(interaction) {
             }
         }
 
-        await interaction.reply({ embeds: [embed], ephemeral: false });
+        await interaction.reply({ embeds: [embed], ephemeral: true });
     } catch (err) {
         if (err instanceof DomainError) {
             await interaction.reply({
