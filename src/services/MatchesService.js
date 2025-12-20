@@ -23,9 +23,6 @@ function normalizeMatchResult(match) {
 }
 
 export class MatchesService {
-    /**
-     * @param {{ seasons: any, matches: any }} deps
-     */
     constructor({ seasons, matches }) {
         this.seasons = seasons;
         this.matches = matches;
@@ -35,7 +32,6 @@ export class MatchesService {
         const season = await this.seasons.getCurrentForGuild(guildId);
         if (!season) throw new DomainError("NO_SEASON", "No season found.");
 
-        // allow during active (and optionally signups_closed if you already generated schedule)
         const allowed = ["active", "signups_closed", "closed"];
         if (!allowed.includes(season.status)) {
             throw new DomainError(
@@ -49,6 +45,19 @@ export class MatchesService {
             discordUserId,
         });
 
+        // ✅ compute nextMatchId BEFORE building weeks (fixes TDZ error)
+        const nextMatch = matches
+            .filter((m) => m.status !== "confirmed")
+            .sort((a, b) => {
+                const wa = a.week ?? 0;
+                const wb = b.week ?? 0;
+                if (wa !== wb) return wa - wb;
+                // stable-ish tie-break
+                return String(a.id).localeCompare(String(b.id));
+            })[0];
+
+        const nextMatchId = nextMatch?.id ?? null;
+
         // group by week
         const byWeek = new Map();
         for (const m of matches) {
@@ -57,14 +66,17 @@ export class MatchesService {
             byWeek.get(week).push(m);
         }
 
-        // build rows
+        // build rows in week order, keep original order inside a week (optional sort by id)
         const weeks = [...byWeek.keys()]
             .sort((a, b) => a - b)
             .map((week) => {
-                const ms = byWeek.get(week);
+                const ms = byWeek.get(week) ?? [];
+
+                // optional: stable order within week
+                ms.sort((a, b) => String(a.id).localeCompare(String(b.id)));
 
                 const lines = ms.flatMap((m) => {
-                    const isNext = m.id === nextMatchId;
+                    const isNext = nextMatchId && m.id === nextMatchId;
 
                     const opp =
                         m.player_a_id === discordUserId
@@ -105,18 +117,11 @@ export class MatchesService {
 
                     if (!isNext) return [line];
 
-                    // 👇 highlight next match ABOVE it
                     return ["👉 **Next up**", line];
                 });
 
                 return { week, lines };
             });
-
-        const nextMatch = matches
-            .filter((m) => m.status !== "confirmed")
-            .sort((a, b) => (a.week ?? 0) - (b.week ?? 0))[0];
-
-        const nextMatchId = nextMatch?.id ?? null;
 
         return { season, weeks };
     }
