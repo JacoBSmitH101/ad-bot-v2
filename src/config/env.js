@@ -9,6 +9,8 @@ const EnvSchema = z.object({
     SUPABASE_URL: z.string().url(),
     SUPABASE_SERVICE_ROLE_KEY: z.string().min(1),
 
+    SUPABASE_DB_SCHEMA: z.string().optional(),
+
     // optional for later
     ADMIN_ROLE_ID: z.string().optional(),
     ADMIN_USER_IDS: z.string().optional(), // comma-separated
