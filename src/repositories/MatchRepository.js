@@ -86,18 +86,6 @@ export class MatchRepository {
     }
     // add inside your existing MatchesRepository
 
-    async update(matchId, patch) {
-        const { data, error } = await this.supabase
-            .from("matches")
-            .update(patch)
-            .eq("id", matchId)
-            .select("*")
-            .single();
-
-        if (error) throw error;
-        return data;
-    }
-
     async markReported({ matchId, reportedBy }) {
         const now = new Date().toISOString();
         const { data, error } = await this.db
