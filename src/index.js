@@ -32,6 +32,8 @@ import { handleStandingsButtons } from "./discord/handlers/standingsButtons.js";
 import { StandingsPublisherService } from "./services/StandingsPublisherService.js";
 import { MatchesService } from "./services/MatchesService.js";
 import { FixturesPublisherService } from "./services/FixturesPublisherService.js";
+import { InternalApiClient } from "./services/InternalApiClient.js";
+import { MatchStatsService } from "./services/MatchStatsService.js";
 
 async function dbPing() {
     const { error } = await supabase.from("seasons").select("id").limit(1);
@@ -52,6 +54,11 @@ if (!token) {
 
 const client = new Client({ intents: [GatewayIntentBits.Guilds] });
 const schema = env.SUPABASE_DB_SCHEMA || "public";
+
+const internalApi = new InternalApiClient({
+    baseUrl: env.INTERNAL_API_BASE_URL,
+    internalKey: env.INTERNAL_API_KEY,
+});
 client.repos = {
     seasons: new SeasonRepository({ supabase, schema }),
     players: new PlayersRepository({ supabase, schema }),
@@ -112,6 +119,8 @@ client.services = {
         matches: client.repos.matches,
         divisions: client.repos.divisions,
     }),
+    matchStats: new MatchStatsService({ internalApi }),
+    internalApi: internalApi,
     config: {
         adminUserId: env.ADMIN_USER_ID ?? null,
     },
