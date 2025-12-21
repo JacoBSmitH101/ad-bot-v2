@@ -28,9 +28,15 @@ export class MatchResultsRepository {
                 { onConflict: "match_id" }
             )
             .select("*")
-            .single();
+            .maybeSingle();
 
         if (error) throw error;
+        if (!data) {
+            throw new DomainError(
+                "RESULT_UPSERT_FAILED",
+                "Could not save match result (no row returned)."
+            );
+        }
         return data;
     }
 
