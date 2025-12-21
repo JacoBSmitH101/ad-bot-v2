@@ -1,5 +1,4 @@
-import { DomainError } from "../utils/DomainError";
-
+import { DomainError } from "../utils/DomainError.js";
 export class MatchRepository {
     constructor({ supabase, schema }) {
         this.supabase = supabase.schema(schema);
