@@ -274,23 +274,19 @@ export class ResultService {
             discordUserId: adminDiscordUserId,
             displayName: adminDisplayName,
         });
+
         console.log("adminEditResult: step 2 upsert result");
         console.log({ matchId, legsA, legsB, proofUrl });
+
         const updatedResult = await this.matchResults.upsert({
             matchId: match.id,
             legsA,
             legsB,
             proofUrl,
         });
-        console.log("adminEditResult: step 3 update match");
-        // If it was disputed, you can decide whether editing resolves it.
-        // We'll leave status unchanged by default.
-        const updatedMatch = await this.matches.update(match.id, {
-            // no status change here
-            // keep timestamps as-is
-        });
 
-        return { season, match: updatedMatch, result: updatedResult };
+        // no need to update matches table unless you're changing status/timestamps/etc
+        return { season, match, result: updatedResult };
     }
 
     async adminResetMatch({
