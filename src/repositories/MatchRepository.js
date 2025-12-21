@@ -45,8 +45,7 @@ export class MatchRepository {
             .from("matches")
             .update(patch)
             .eq("id", String(matchId).trim())
-            .select("*")
-            .maybeSingle();
+            .select("*");
 
         if (error) throw error;
         if (!data) {
