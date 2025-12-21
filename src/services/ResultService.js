@@ -249,7 +249,7 @@ export class ResultService {
     }) {
         const season = await this.seasons.getCurrentForGuild(guildId);
         if (!season) throw new DomainError("NO_SEASON", "No season found.");
-
+        console.log("adminEditResult: step 1 get match");
         const match = await this.matches.getById(matchId);
 
         if (match.season_id !== season.id) {
@@ -274,14 +274,14 @@ export class ResultService {
             discordUserId: adminDiscordUserId,
             displayName: adminDisplayName,
         });
-
+        console.log("adminEditResult: step 2 upsert result");
         const updatedResult = await this.matchResults.upsert({
             matchId: match.id,
             legsA,
             legsB,
             proofUrl,
         });
-
+        console.log("adminEditResult: step 3 update match");
         // If it was disputed, you can decide whether editing resolves it.
         // We'll leave status unchanged by default.
         const updatedMatch = await this.matches.update(match.id, {
