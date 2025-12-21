@@ -79,16 +79,6 @@ export class MatchRepository {
         return data; // null if not found
     }
     // add inside your existing MatchesRepository
-    async getById(matchId) {
-        const { data, error } = await this.supabase
-            .from("matches")
-            .select("*")
-            .eq("id", matchId)
-            .single();
-
-        if (error) throw error;
-        return data;
-    }
 
     async update(matchId, patch) {
         const { data, error } = await this.supabase
