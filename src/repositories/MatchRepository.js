@@ -54,7 +54,6 @@ export class MatchRepository {
                 "Match update affected 0 rows (match not found)."
             );
         }
-        console.log("MatchRepository.update:", { matchId, patch, data });
         return data;
     }
     async setResultMessage({ matchId, channelId, messageId }) {
