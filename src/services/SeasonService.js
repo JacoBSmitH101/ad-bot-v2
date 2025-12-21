@@ -94,4 +94,17 @@ export class SeasonService {
 
         return this.seasons.updateStatus(season.id, "signups_closed");
     }
+    async closeSeason({ guildId }) {
+        const season = await this.seasons.getCurrentForGuild(guildId);
+        if (!season) throw new DomainError("NO_SEASON", "No season found.");
+
+        if (season.status !== "active") {
+            throw new DomainError(
+                "INVALID_STATE",
+                `Season must be active to close (current: ${season.status})`
+            );
+        }
+
+        return this.seasons.updateStatus(season.id, "closed");
+    }
 }

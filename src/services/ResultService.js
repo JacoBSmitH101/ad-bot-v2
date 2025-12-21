@@ -238,4 +238,149 @@ export class ResultService {
         }
         // optional: require someone hits 3/4/5 etc depending on format later
     }
+    async adminEditResult({
+        guildId,
+        adminDiscordUserId,
+        adminDisplayName,
+        matchId,
+        legsA,
+        legsB,
+        proofUrl = null,
+    }) {
+        const season = await this.seasons.getCurrentForGuild(guildId);
+        if (!season) throw new DomainError("NO_SEASON", "No season found.");
+
+        const match = await this.matches.getById(matchId);
+
+        if (match.season_id !== season.id) {
+            throw new DomainError(
+                "WRONG_SEASON",
+                "That match is not in the current season."
+            );
+        }
+
+        if (!["reported", "confirmed", "disputed"].includes(match.status)) {
+            throw new DomainError(
+                "INVALID_STATE",
+                `Can only edit results for reported/confirmed/disputed matches (current: ${match.status})`
+            );
+        }
+
+        // reuse your existing validation rules
+        this.#validateScore(legsA, legsB);
+
+        // FK safety if you ever use confirmed_by / audit later
+        await this.players.upsert({
+            discordUserId: adminDiscordUserId,
+            displayName: adminDisplayName,
+        });
+
+        const updatedResult = await this.matchResults.upsert({
+            matchId: match.id,
+            legsA,
+            legsB,
+            proofUrl,
+        });
+
+        // If it was disputed, you can decide whether editing resolves it.
+        // We'll leave status unchanged by default.
+        const updatedMatch = await this.matches.update(match.id, {
+            // no status change here
+            // keep timestamps as-is
+        });
+
+        return { season, match: updatedMatch, result: updatedResult };
+    }
+
+    async adminResetMatch({
+        guildId,
+        adminDiscordUserId,
+        adminDisplayName,
+        matchId,
+        clearResultMessage = false,
+    }) {
+        const season = await this.seasons.getCurrentForGuild(guildId);
+        if (!season) throw new DomainError("NO_SEASON", "No season found.");
+
+        const match = await this.matches.getById(matchId);
+
+        if (match.season_id !== season.id) {
+            throw new DomainError(
+                "WRONG_SEASON",
+                "That match is not in the current season."
+            );
+        }
+
+        // delete the stored result
+        await this.matchResults.deleteByMatchId(match.id);
+
+        await this.players.upsert({
+            discordUserId: adminDiscordUserId,
+            displayName: adminDisplayName,
+        });
+
+        const patch = {
+            status: "scheduled",
+            reported_by: null,
+            reported_at: null,
+            confirmed_by: null,
+            confirmed_at: null,
+            disputed_at: null,
+        };
+
+        if (clearResultMessage) {
+            patch.result_channel_id = null;
+            patch.result_message_id = null;
+        }
+
+        const updatedMatch = await this.matches.update(match.id, patch);
+
+        return { season, match: updatedMatch };
+    }
+
+    async adminVoidMatch({
+        guildId,
+        adminDiscordUserId,
+        adminDisplayName,
+        matchId,
+        clearResultMessage = false,
+    }) {
+        const season = await this.seasons.getCurrentForGuild(guildId);
+        if (!season) throw new DomainError("NO_SEASON", "No season found.");
+
+        const match = await this.matches.getById(matchId);
+
+        if (match.season_id !== season.id) {
+            throw new DomainError(
+                "WRONG_SEASON",
+                "That match is not in the current season."
+            );
+        }
+
+        // void means no points from it → easiest is to delete match_results
+        await this.matchResults.deleteByMatchId(match.id);
+
+        await this.players.upsert({
+            discordUserId: adminDiscordUserId,
+            displayName: adminDisplayName,
+        });
+
+        const patch = {
+            status: "void",
+            reported_by: null,
+            reported_at: null,
+            confirmed_by: null,
+            confirmed_at: null,
+            disputed_at: null,
+        };
+
+        if (clearResultMessage) {
+            patch.result_channel_id = null;
+            patch.result_message_id = null;
+        }
+
+        const updatedMatch = await this.matches.update(match.id, patch);
+
+        return { season, match: updatedMatch };
+    }
 }
