@@ -54,7 +54,6 @@ export async function execute(interaction) {
                 legsB,
                 proofUrl: url ?? null,
             });
-        console.log(match, result);
 
         const embed = new EmbedBuilder()
             .setTitle("✏️ Result edited")
