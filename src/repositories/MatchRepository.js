@@ -34,7 +34,7 @@ export class MatchRepository {
             .select("*")
             .eq("id", matchId)
             .single();
-
+        console.log("MatchRepository.getById:", { matchId, data, error });
         if (error) throw error;
         return data;
     }
