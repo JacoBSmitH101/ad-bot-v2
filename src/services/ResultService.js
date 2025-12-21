@@ -275,6 +275,7 @@ export class ResultService {
             displayName: adminDisplayName,
         });
         console.log("adminEditResult: step 2 upsert result");
+        console.log({ matchId, legsA, legsB, proofUrl });
         const updatedResult = await this.matchResults.upsert({
             matchId: match.id,
             legsA,
