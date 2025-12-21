@@ -247,7 +247,7 @@ export class ResultService {
         legsB,
         proofUrl = null,
     }) {
-        console.log("getting season for guild:", guildId);
+        const season = await this.seasons.getCurrentForGuild(guildId);
         if (!season) throw new DomainError("NO_SEASON", "No season found.");
 
         const match = await this.matches.getById(matchId);
