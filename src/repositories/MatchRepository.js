@@ -43,11 +43,17 @@ export class MatchRepository {
         const { data, error } = await this.supabase
             .from("matches")
             .update(patch)
-            .eq("id", matchId)
+            .eq("id", String(matchId).trim())
             .select("*")
-            .single();
+            .maybeSingle();
 
         if (error) throw error;
+        if (!data) {
+            throw new DomainError(
+                "MATCH_UPDATE_FAILED",
+                "Match update affected 0 rows (match not found)."
+            );
+        }
         return data;
     }
     async setResultMessage({ matchId, channelId, messageId }) {
