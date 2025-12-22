@@ -1,4 +1,8 @@
-import { SlashCommandBuilder, PermissionFlagsBits } from "discord.js";
+import {
+    SlashCommandBuilder,
+    PermissionFlagsBits,
+    MessageFlags,
+} from "discord.js";
 import { DomainError } from "../../utils/DomainError.js";
 
 export const data = new SlashCommandBuilder()
@@ -24,12 +28,12 @@ export async function execute(interaction) {
     if (!isAdmin) {
         await interaction.reply({
             content: "❌ You don’t have permission.",
-            ephemeral: true,
+            flags: MessageFlags.Ephemeral,
         });
         return;
     }
 
-    await interaction.deferReply({ ephemeral: true });
+    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
     try {
         const week = interaction.options.getInteger("week");

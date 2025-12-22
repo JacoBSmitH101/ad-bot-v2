@@ -1,5 +1,5 @@
 // src/discord/commands/mymatches.js
-import { SlashCommandBuilder, EmbedBuilder } from "discord.js";
+import { SlashCommandBuilder, EmbedBuilder, MessageFlags } from "discord.js";
 import { DomainError } from "../../utils/DomainError.js";
 
 export const data = new SlashCommandBuilder()
@@ -37,19 +37,19 @@ export async function execute(interaction) {
             }
         }
 
-        await interaction.reply({ embeds: [embed], ephemeral: true });
+        await interaction.reply({ embeds: [embed], flags: MessageFlags.Ephemeral });
     } catch (err) {
         if (err instanceof DomainError) {
             await interaction.reply({
                 content: `❌ ${err.message}`,
-                ephemeral: true,
+                flags: MessageFlags.Ephemeral,
             });
             return;
         }
         console.error(err);
         await interaction.reply({
             content: "❌ Something went wrong.",
-            ephemeral: true,
+            flags: MessageFlags.Ephemeral,
         });
     }
 }

@@ -5,6 +5,7 @@ import {
     ActionRowBuilder,
     ButtonBuilder,
     ButtonStyle,
+    MessageFlags,
 } from "discord.js";
 import { DomainError } from "../../utils/DomainError.js";
 
@@ -98,20 +99,20 @@ export async function execute(interaction) {
         await interaction.reply({
             embeds,
             components: view === "summary" ? [row] : [], // keep channel clean on /standings full
-            ephemeral: true,
+            flags: MessageFlags.Ephemeral,
         });
     } catch (err) {
         if (err instanceof DomainError) {
             await interaction.reply({
                 content: `❌ ${err.message}`,
-                ephemeral: true,
+                flags: MessageFlags.Ephemeral,
             });
             return;
         }
         console.error(err);
         await interaction.reply({
             content: "❌ Something went wrong.",
-            ephemeral: true,
+            flags: MessageFlags.Ephemeral,
         });
     }
 }

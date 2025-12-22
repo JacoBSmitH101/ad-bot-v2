@@ -1,5 +1,5 @@
 // src/discord/handlers/standingsButtons.js
-import { EmbedBuilder } from "discord.js";
+import { EmbedBuilder, MessageFlags } from "discord.js";
 import { DomainError } from "../../utils/DomainError.js";
 
 function fmtPlayer(id) {
@@ -70,7 +70,7 @@ export async function handleStandingsButtons(interaction) {
         return false;
     }
 
-    await interaction.deferReply({ ephemeral: true });
+    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
     try {
         const res =

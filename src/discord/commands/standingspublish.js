@@ -1,5 +1,5 @@
 // src/discord/commands/standingspublish.js
-import { SlashCommandBuilder } from "discord.js";
+import { SlashCommandBuilder, MessageFlags } from "discord.js";
 import { DomainError } from "../../utils/DomainError.js";
 
 export const data = new SlashCommandBuilder()
@@ -18,12 +18,12 @@ export async function execute(interaction) {
     if (!isAdmin) {
         await interaction.reply({
             content: "❌ You don’t have permission to do that.",
-            ephemeral: true,
+            flags: MessageFlags.Ephemeral,
         });
         return;
     }
 
-    await interaction.deferReply({ ephemeral: true });
+    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
     try {
         const { season } =
