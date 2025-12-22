@@ -106,6 +106,29 @@ export class ResultService {
             disputed_at: null,
         });
 
+        // #region agent log
+        fetch(
+            "http://127.0.0.1:7242/ingest/dd387cc0-3ef6-4629-9ef1-f5bce1d079ff",
+            {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    sessionId: "debug-session",
+                    runId: "post-fix",
+                    hypothesisId: "H1",
+                    location: "ResultService.submit",
+                    message: "submit returning payload",
+                    data: {
+                        matchIsArray: Array.isArray(updatedMatch),
+                        matchType: typeof updatedMatch,
+                        matchId: updatedMatch?.id ?? null,
+                    },
+                    timestamp: Date.now(),
+                }),
+            }
+        ).catch(() => {});
+        // #endregion
+
         return { season, match: updatedMatch, result };
     }
 

@@ -48,13 +48,40 @@ export class MatchRepository {
             .select("*");
 
         if (error) throw error;
-        if (!data) {
+        if (!data || data.length === 0) {
             throw new DomainError(
                 "MATCH_UPDATE_FAILED",
                 "Match update affected 0 rows (match not found)."
             );
         }
-        return data;
+
+        const row = Array.isArray(data) ? data[0] : data;
+
+        // #region agent log
+        fetch(
+            "http://127.0.0.1:7242/ingest/dd387cc0-3ef6-4629-9ef1-f5bce1d079ff",
+            {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    sessionId: "debug-session",
+                    runId: "post-fix",
+                    hypothesisId: "H1",
+                    location: "MatchRepository.update",
+                    message: "update result shape",
+                    data: {
+                        matchId,
+                        dataIsArray: Array.isArray(data),
+                        dataLength: Array.isArray(data) ? data.length : null,
+                        rowId: row?.id ?? null,
+                    },
+                    timestamp: Date.now(),
+                }),
+            }
+        ).catch(() => {});
+        // #endregion
+
+        return row;
     }
     async setResultMessage({ matchId, channelId, messageId }) {
         const { data, error } = await this.supabase
