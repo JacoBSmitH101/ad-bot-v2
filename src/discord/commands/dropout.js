@@ -19,6 +19,8 @@ export async function execute(interaction) {
         .setTitle("🗑️ Signup Removed")
         .setDescription(`You have been removed from **${season.name}**`)
         .setThumbnail(avatarUrl)
+        //purple
+        .setColor(0x800080)
         .addFields(
             {
                 name: "Player",
