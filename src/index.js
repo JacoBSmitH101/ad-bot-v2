@@ -113,6 +113,7 @@ client.services = {
     matches: new MatchesService({
         matches: client.repos.matches,
         seasons: client.repos.seasons,
+        divisions: client.repos.divisions,
     }),
     fixturesPublisher: new FixturesPublisherService({
         seasons: client.repos.seasons,

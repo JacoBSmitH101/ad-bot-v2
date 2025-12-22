@@ -248,22 +248,53 @@ export class MatchRepository {
             .from("matches")
             .select(
                 `
-            id,
-            season_id,
-            division_id,
-            week,
-            player_a_id,
-            player_b_id,
-            status,
-            match_results (
-                legs_a,
-                legs_b,
-                proof_url
-            )
-        `
+                id,
+                season_id,
+                division_id,
+                week,
+                player_a_id,
+                player_b_id,
+                status,
+                match_results (
+                    legs_a,
+                    legs_b,
+                    proof_url
+                )
+            `
             )
             .eq("season_id", seasonId)
             .eq("week", week)
+            .order("division_id", { ascending: true });
+
+        if (error) throw error;
+        return data ?? [];
+    }
+
+    async listUnreportedBeforeWeek({ seasonId, week }) {
+        const { data, error } = await this.supabase
+            .from("matches")
+            .select(
+                `
+                id,
+                season_id,
+                division_id,
+                week,
+                player_a_id,
+                player_b_id,
+                status,
+                match_results (
+                    legs_a,
+                    legs_b,
+                    proof_url
+                )
+            `
+            )
+            .eq("season_id", seasonId)
+            .lt("week", week)
+            .neq("status", "confirmed")
+            .neq("status", "void")
+            .neq("status", "reported")
+            .order("week", { ascending: true })
             .order("division_id", { ascending: true });
 
         if (error) throw error;
