@@ -24,11 +24,26 @@ export const data = new SlashCommandBuilder()
         opt.setName("url").setDescription("Proof URL").setRequired(true)
     );
 
+function validateAutodartsMatchUrl(url) {
+    const regex =
+        /^https:\/\/play\.autodarts\.io\/history\/matches\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+    return regex.test(url);
+}
+
 export async function execute(interaction) {
     const opponent = interaction.options.getUser("opponent", true);
     const you = interaction.options.getInteger("you", true);
     const them = interaction.options.getInteger("them", true);
     const url = interaction.options.getString("url", true);
+
+    if (!validateAutodartsMatchUrl(url)) {
+        await interaction.reply({
+            content: "❌ Match URL must be a valid Autodarts match link.",
+            flags: MessageFlags.Ephemeral,
+        });
+        return;
+    }
 
     try {
         const { season, match, result } =
