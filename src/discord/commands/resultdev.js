@@ -1,3 +1,41 @@
+// src/discord/commands/resultdev.js
+import {
+    SlashCommandBuilder,
+    EmbedBuilder,
+    MessageFlags,
+    PermissionFlagsBits,
+} from "discord.js";
+import { DomainError } from "../../utils/DomainError.js";
+
+export const data = new SlashCommandBuilder()
+    .setName("resultdev")
+    .setDescription("[DEV] Submit a result against a fake player id")
+    .addStringOption((opt) =>
+        opt
+            .setName("opponent_id")
+            .setDescription("Opponent discord_user_id (e.g. FAKE_001)")
+            .setRequired(true)
+    )
+    .addIntegerOption((opt) =>
+        opt.setName("you").setDescription("Your legs won").setRequired(true)
+    )
+    .addIntegerOption((opt) =>
+        opt
+            .setName("them")
+            .setDescription("Opponent legs won")
+            .setRequired(true)
+    )
+    .addStringOption((opt) =>
+        opt.setName("url").setDescription("Proof URL").setRequired(true)
+    )
+    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator);
+function validateAutodartsMatchUrl(url) {
+    const regex =
+        /^https:\/\/play\.autodarts\.io\/history\/matches\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+    return regex.test(url);
+}
+
 export async function execute(interaction) {
     const opponentId = interaction.options
         .getString("opponent_id", true)
