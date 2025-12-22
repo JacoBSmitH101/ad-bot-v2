@@ -24,6 +24,7 @@ export async function execute(interaction) {
     const embed = new EmbedBuilder()
         .setTitle(isUpdate ? "🔁 Signup Updated" : "✅ Signup Confirmed")
         .setDescription(`**${season.name}**`)
+        .setColor(isUpdate ? 0xf59e0b : 0x57f287)
         .setThumbnail(avatarUrl)
         .addFields(
             {
