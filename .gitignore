@@ -13,3 +13,5 @@ node_modules/
 .DS_Store
 .vscode/
 .idea/
+docs/PLAYER_STATS_DOCUMENTATION.md
+docs/WEBSITE_PROJECT.md
