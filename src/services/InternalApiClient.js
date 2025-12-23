@@ -1,7 +1,16 @@
-// src/services/InternalApiClient.js
 import { DomainError } from "../utils/DomainError.js";
 
+/**
+ * Client for making requests to the internal API.
+ * Handles authentication, timeouts, and error handling.
+ */
 export class InternalApiClient {
+    /**
+     * @param {{ baseUrl: string, internalKey: string, timeoutMs: number }} params
+     * @param {string} params.baseUrl Base URL of the internal API.
+     * @param {string} params.internalKey Internal API key for authentication.
+     * @param {number} [params.timeoutMs=8000] Request timeout in milliseconds.
+     */
     constructor({ baseUrl, internalKey, timeoutMs = 8000 }) {
         this.baseUrl = baseUrl?.replace(/\/+$/, "");
         this.internalKey = internalKey;
@@ -10,6 +19,15 @@ export class InternalApiClient {
         if (!this.internalKey) throw new Error("INTERNAL_API_KEY missing");
     }
 
+    /**
+     * Make an authenticated request to the internal API.
+     * @private
+     * @param {string} method HTTP method.
+     * @param {string} path API path.
+     * @param {{ jsonBody: (Object|null) }} [options]
+     * @returns {Promise<Object>}
+     * @throws {DomainError} If request fails or times out.
+     */
     async #request(method, path, { jsonBody = null } = {}) {
         const controller = new AbortController();
         const t = setTimeout(() => controller.abort(), this.timeoutMs);
@@ -56,13 +74,19 @@ export class InternalApiClient {
         }
     }
 
-    // Health (no internal key required, but we can still send it)
+    /**
+     * Check API health status.
+     * @returns {Promise<Object>}
+     */
     async health() {
         const res = await fetch(`${this.baseUrl}/health`).then((r) => r.json());
         return res;
     }
 
-    // Autodarts status/admin
+    /**
+     * Get Autodarts connection status.
+     * @returns {Promise<Object>}
+     */
     async getAutodartsStatus() {
         //add some console logs here as this isnt working
         // console.log("Fetching Autodarts status from Internal API");
@@ -71,25 +95,46 @@ export class InternalApiClient {
         return this.#request("GET", "/autodarts/status");
     }
 
+    /**
+     * Refresh Autodarts connection.
+     * @returns {Promise<Object>}
+     */
     async refreshAutodarts() {
         return this.#request("POST", "/autodarts/refresh");
     }
 
+    /**
+     * Set Autodarts refresh token.
+     * @param {string} refreshToken
+     * @returns {Promise<Object>}
+     */
     async setRefreshToken(refreshToken) {
         return this.#request("POST", "/autodarts/token", {
             jsonBody: { refreshToken },
         });
     }
 
+    /**
+     * Get job queue status.
+     * @returns {Promise<Object>}
+     */
     async getJobs() {
         return this.#request("GET", "/jobs");
     }
 
+    /**
+     * Retry failed jobs.
+     * @returns {Promise<Object>}
+     */
     async retryJobs() {
         return this.#request("POST", "/jobs/retry");
     }
 
-    // Match stats
+    /**
+     * Get match statistics from Autodarts.
+     * @param {string} matchId Autodarts match ID.
+     * @returns {Promise<Object>}
+     */
     async getMatchStats(matchId) {
         return this.#request("GET", `/matches/${matchId}/stats`);
     }

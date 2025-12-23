@@ -1,18 +1,41 @@
 import { DomainError } from "../utils/DomainError.js";
 
+/**
+ * Service for managing player signups for seasons.
+ * Handles signup/dropout logic, validation, and player record management.
+ */
 export class SignupService {
+    /**
+     * @param {{ seasons: SeasonRepository, players: PlayersRepository, signups: SignupRepository }} deps
+     * @param {SeasonRepository} deps.seasons Season repository instance.
+     * @param {PlayersRepository} deps.players Player repository instance.
+     * @param {SignupRepository} deps.signups Signup repository instance.
+     */
     constructor({ seasons, players, signups }) {
         this.seasons = seasons;
         this.players = players;
         this.signups = signups;
     }
 
+    /**
+     * Parse and normalize average input to 1 decimal place.
+     * @param {string|number} input
+     * @returns {(number|null)} Parsed average or null if invalid.
+     */
     parseAvg(input) {
         const num = Number(input);
         if (!Number.isFinite(num)) return null;
         // keep 1 decimal for consistency
         return Math.round(num * 10) / 10;
     }
+
+    /**
+     * Remove a player's signup from the current season.
+     * Only allowed while signups are open.
+     * @param {{ guildId: string, discordUserId: string }} params
+     * @returns {Promise<{season: Season, previousAvg: number}>}
+     * @throws {DomainError} If no season, signups not open, or player not signed up.
+     */
     async dropout({ guildId, discordUserId }) {
         const season = await this.seasons.getCurrentForGuild(guildId);
         if (!season)
@@ -41,6 +64,13 @@ export class SignupService {
         return { season, previousAvg: Number(existing.avg_3dart) };
     }
 
+    /**
+     * Sign up a player for the current season or update their existing signup.
+     * Validates average (10.0-120.0) and ensures player record exists.
+     * @param {{ guildId: string, discordUserId: string, displayName: (string|null), avg: string|number }} params
+     * @returns {Promise<{season: Season, signup: Signup, isUpdate: boolean, previousAvg: (number|null)}>}
+     * @throws {DomainError} If no season, signups closed/not open, invalid average, or signups past close time.
+     */
     async signup({ guildId, discordUserId, displayName, avg }) {
         const season = await this.seasons.getCurrentForGuild(guildId);
         if (!season)

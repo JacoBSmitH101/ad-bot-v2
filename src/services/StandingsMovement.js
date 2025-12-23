@@ -1,6 +1,11 @@
-// src/services/StandingsMovement.js
 import { EmbedBuilder } from "discord.js";
 
+/**
+ * Formats a player ID for display.
+ * @private
+ * @param {string} id
+ * @returns {string}
+ */
 function fmtPlayer(id) {
     return id.startsWith("FAKE_") ? `\`${id}\`` : `<@${id}>`;
 }
@@ -11,13 +16,25 @@ function buildRankMap(rows) {
     return map;
 }
 
+/**
+ * Format rank movement arrow.
+ * @private
+ * @param {number} delta
+ * @returns {string}
+ */
 function arrow(delta) {
     if (delta < 0) return `🟢▲${Math.abs(delta)}`;
     if (delta > 0) return `🔴▼${delta}`;
     return "⚪—";
 }
 
-// include only: the two players + anyone whose rank changed (optional cap)
+/**
+ * Build a Discord embed showing standings movement after a match.
+ * Includes only the match players and anyone whose rank changed.
+ * @param {{ seasonName: string, divisionName: string, match: Match, beforeRows: Array.<StandingsRow>, afterRows: Array.<StandingsRow>, limit: number }} params
+ * @param {number} [params.limit=8] Maximum number of movements to show.
+ * @returns {EmbedBuilder}
+ */
 export function buildMovementEmbed({
     seasonName,
     divisionName,

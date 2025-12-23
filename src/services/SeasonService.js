@@ -1,8 +1,15 @@
 import { DomainError } from "../utils/DomainError.js";
 
+/**
+ * Service for managing season lifecycle and state transitions.
+ * Handles creation, opening/closing signups, and starting/closing seasons.
+ */
 export class SeasonService {
     /**
-     * @param {{ seasons: any }} deps
+     * @param {{ seasons: SeasonRepository, signups: SignupRepository, matches: MatchRepository }} deps
+     * @param {SeasonRepository} deps.seasons Season repository instance.
+     * @param {SignupRepository} deps.signups Signup repository instance.
+     * @param {MatchRepository} deps.matches Match repository instance.
      */
     constructor({ seasons, signups, matches }) {
         this.seasons = seasons;
@@ -10,6 +17,13 @@ export class SeasonService {
         this.matches = matches;
     }
 
+    /**
+     * Start a season (move from signups_closed to active).
+     * Requires an approved schedule (matches must exist).
+     * @param {{ guildId: string }} params
+     * @returns {Promise<Season>}
+     * @throws {DomainError} If no season, wrong status, or no schedule approved.
+     */
     async startSeason({ guildId }) {
         const season = await this.seasons.getCurrentForGuild(guildId);
         if (!season) throw new DomainError("NO_SEASON", "No season found.");
@@ -34,8 +48,10 @@ export class SeasonService {
     }
 
     /**
-     * Create a season in draft state
+     * Create a season in draft state.
      * @param {{ guildId: string, name: string }} input
+     * @returns {Promise<Season>}
+     * @throws {DomainError} If season name is too short or too long.
      */
     async createSeason({ guildId, name }) {
         const cleanName = (name ?? "").trim();
@@ -58,6 +74,14 @@ export class SeasonService {
         // For now, keep it simple and just create.
         return this.seasons.create({ guildId, name: cleanName });
     }
+
+    /**
+     * Open signups for a season (move from draft/signups_closed to signups_open).
+     * Optionally set a close timestamp.
+     * @param {{ guildId: string, closeAt: (string|null) }} params
+     * @returns {Promise<Season>}
+     * @throws {DomainError} If no season or invalid state.
+     */
     async openSignups({ guildId, closeAt = null }) {
         const season = await this.seasons.getCurrentForGuild(guildId);
         if (!season)
@@ -80,6 +104,12 @@ export class SeasonService {
         return this.seasons.updateStatus(season.id, "signups_open");
     }
 
+    /**
+     * Close signups for a season (move from signups_open to signups_closed).
+     * @param {{ guildId: string }} params
+     * @returns {Promise<Season>}
+     * @throws {DomainError} If no season or signups not open.
+     */
     async closeSignups({ guildId }) {
         const season = await this.seasons.getCurrentForGuild(guildId);
         if (!season)
@@ -94,6 +124,13 @@ export class SeasonService {
 
         return this.seasons.updateStatus(season.id, "signups_closed");
     }
+
+    /**
+     * Close a season (move from active to closed).
+     * @param {{ guildId: string }} params
+     * @returns {Promise<Season>}
+     * @throws {DomainError} If no season or season not active.
+     */
     async closeSeason({ guildId }) {
         const season = await this.seasons.getCurrentForGuild(guildId);
         if (!season) throw new DomainError("NO_SEASON", "No season found.");

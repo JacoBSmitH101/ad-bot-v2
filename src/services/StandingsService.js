@@ -1,9 +1,29 @@
-// src/services/StandingsService.js
 import { DomainError } from "../utils/DomainError.js";
 
+/**
+ * @typedef {Object} StandingsRow
+ * @property {string} discordUserId
+ * @property {string} name
+ * @property {number} played
+ * @property {number} wins
+ * @property {number} losses
+ * @property {number} legsFor
+ * @property {number} legsAgainst
+ * @property {number} legDiff
+ * @property {number} points
+ */
+
+/**
+ * Service for computing and retrieving standings.
+ * Calculates player statistics from confirmed matches.
+ */
 export class StandingsService {
     /**
-     * @param {{ seasons: any, divisions: any, divisionPlayers: any, matches: any }} deps
+     * @param {{ seasons: SeasonRepository, divisions: DivisionRepository, divisionPlayers: DivisionPlayersRepository, matches: MatchRepository }} deps
+     * @param {SeasonRepository} deps.seasons Season repository instance.
+     * @param {DivisionRepository} deps.divisions Division repository instance.
+     * @param {DivisionPlayersRepository} deps.divisionPlayers Division players repository instance.
+     * @param {MatchRepository} deps.matches Match repository instance.
      */
     constructor({ seasons, divisions, divisionPlayers, matches }) {
         this.seasons = seasons;
@@ -12,6 +32,12 @@ export class StandingsService {
         this.matches = matches;
     }
 
+    /**
+     * Get standings for all divisions in the current season.
+     * @param {{ guildId: string }} params
+     * @returns {Promise<{season: Season, divisions: Array.<{division: Division, standings: Array.<StandingsRow>}>}>}
+     * @throws {DomainError} If no season, invalid season state, or no divisions found.
+     */
     async getStandingsForCurrentSeason({ guildId }) {
         const season = await this.seasons.getCurrentForGuild(guildId);
         if (!season) throw new DomainError("NO_SEASON", "No season found.");
@@ -162,7 +188,13 @@ export class StandingsService {
 
         return { season, divisions: out };
     }
-    // Add inside StandingsService class
+
+    /**
+     * Get standings for a specific division.
+     * @param {{ guildId: string, divisionId: number }} params
+     * @returns {Promise<{season: Season, standings: Array.<StandingsRow>}>}
+     * @throws {DomainError} If no season or invalid season state.
+     */
     async getDivisionStandings({ guildId, divisionId }) {
         const season = await this.seasons.getCurrentForGuild(guildId);
         if (!season) throw new DomainError("NO_SEASON", "No season found.");

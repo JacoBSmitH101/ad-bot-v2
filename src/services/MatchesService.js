@@ -1,6 +1,29 @@
-// src/services/MatchesService.js
 import { DomainError } from "../utils/DomainError.js";
 
+/**
+ * @typedef {Object} MatchWeek
+ * @property {number} week
+ * @property {Array.<string>} lines - Formatted match lines for display
+ */
+
+/**
+ * @typedef {Object} MyMatchesResult
+ * @property {Season} season
+ * @property {Array.<MatchWeek>} weeks
+ */
+
+/**
+ * @typedef {Object} UnreportedMatchesResult
+ * @property {Season} season
+ * @property {Array.<MatchWeek>} weeks
+ */
+
+/**
+ * Formats a player ID for display.
+ * @private
+ * @param {string} id
+ * @returns {string}
+ */
 function fmtPlayer(id) {
     return id.startsWith("FAKE_") ? `\`${id}\`` : `<@${id}>`;
 }
@@ -11,6 +34,12 @@ function statusIcon(status) {
     return "🗓️";
 }
 
+/**
+ * Normalizes match result from Supabase response (handles array/object).
+ * @private
+ * @param {MatchWithResult} match
+ * @returns {{legs_a: number, legs_b: number, proof_url: (string|null)}|null}
+ */
 function normalizeMatchResult(match) {
     const mrRaw = match.match_results;
     const mr = Array.isArray(mrRaw) ? mrRaw[0] : mrRaw;
@@ -22,12 +51,30 @@ function normalizeMatchResult(match) {
     };
 }
 
+/**
+ * Service for querying and formatting match data for display.
+ * Handles player match lists and unreported match queries.
+ */
 export class MatchesService {
+    /**
+     * @param {{ seasons: SeasonRepository, matches: MatchRepository, divisions: DivisionRepository }} deps
+     * @param {SeasonRepository} deps.seasons Season repository instance.
+     * @param {MatchRepository} deps.matches Match repository instance.
+     * @param {DivisionRepository} deps.divisions Division repository instance.
+     */
     constructor({ seasons, matches, divisions }) {
         this.seasons = seasons;
         this.matches = matches;
         this.divisions = divisions;
     }
+
+    /**
+     * Get all matches for a player in the current season, grouped by week.
+     * Includes results and highlights next match.
+     * @param {{ guildId: string, discordUserId: string }} params
+     * @returns {Promise<MyMatchesResult>}
+     * @throws {DomainError} If no season or invalid season state.
+     */
     async getMyMatches({ guildId, discordUserId }) {
         const season = await this.seasons.getCurrentForGuild(guildId);
         if (!season) throw new DomainError("NO_SEASON", "No season found.");
@@ -126,6 +173,13 @@ export class MatchesService {
         return { season, weeks };
     }
 
+    /**
+     * Get unreported matches before a specific week, grouped by week.
+     * Excludes confirmed, void, and reported matches.
+     * @param {{ guildId: string, week: number }} params
+     * @returns {Promise<UnreportedMatchesResult>}
+     * @throws {DomainError} If no season or invalid season state.
+     */
     async getUnreportedBeforeWeek({ guildId, week }) {
         const season = await this.seasons.getCurrentForGuild(guildId);
         if (!season) throw new DomainError("NO_SEASON", "No season found.");

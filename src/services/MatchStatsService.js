@@ -1,17 +1,34 @@
-// src/services/MatchStatsService.js
 import { DomainError } from "../utils/DomainError.js";
 import { extractAutodartsMatchId } from "../utils/autodarts.js";
 
+/**
+ * Convert value to number or null.
+ * @private
+ * @param {*} v
+ * @returns {(number|null)}
+ */
 function numOrNull(v) {
     const n = Number(v);
     return Number.isFinite(n) ? n : null;
 }
 
+/**
+ * Convert decimal to percentage or null.
+ * @private
+ * @param {*} v
+ * @returns {(number|null)}
+ */
 function pctOrNullDecimalToPercent(v) {
     const n = numOrNull(v);
     return n == null ? null : n * 100;
 }
 
+/**
+ * Align match stats to A-B orientation using legs won.
+ * @private
+ * @param {{ matchStats: Array.<Object>, legsA: number, legsB: number }} params
+ * @returns {{A: (Object|null), B: (Object|null), aligned: boolean}}
+ */
 function alignMatchStatsByLegsWon({ matchStats, legsA, legsB }) {
     const ms0 = matchStats?.[0];
     const ms1 = matchStats?.[1];
@@ -40,16 +57,25 @@ function alignMatchStatsByLegsWon({ matchStats, legsA, legsB }) {
     return { A: ms0, B: ms1, aligned: false };
 }
 
+/**
+ * Service for fetching and formatting match statistics from Autodarts.
+ * Handles API calls and data alignment.
+ */
 export class MatchStatsService {
+    /**
+     * @param {{ internalApi: InternalApiClient }} deps
+     * @param {InternalApiClient} deps.internalApi Internal API client instance.
+     */
     constructor({ internalApi }) {
         this.internalApi = internalApi;
     }
 
     /**
      * Fetch and align stats to A–B using legs won.
-     * @param {string} proofUrl
-     * @param {number} legsA  DB match_results.legs_a
-     * @param {number} legsB  DB match_results.legs_b
+     * @param {string} proofUrl Autodarts match URL.
+     * @param {{ legsA: number, legsB: number }} params - DB match_results legs values.
+     * @returns {Promise<{queued: boolean, source: string, keyStats: ({averageA: (number|null), averageB: (number|null), checkoutA: (number|null), checkoutB: (number|null)}|null)}>}
+     * @throws {DomainError} If invalid proof URL or stats payload missing.
      */
     async fetchKeyStatsForProofUrl(proofUrl, { legsA, legsB }) {
         const matchId = extractAutodartsMatchId(proofUrl);
@@ -102,6 +128,11 @@ export class MatchStatsService {
         };
     }
 
+    /**
+     * Format key stats as display lines.
+     * @param {{averageA: (number|null), averageB: (number|null), checkoutA: (number|null), checkoutB: (number|null)}|null} keyStats
+     * @returns {Array.<string>} Formatted stat lines.
+     */
     formatKeyStatsLines(keyStats) {
         if (!keyStats) return ["_No stats available._"];
 

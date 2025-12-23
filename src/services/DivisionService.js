@@ -1,13 +1,17 @@
 import { DomainError } from "../utils/DomainError.js";
 import { chunkDivisions } from "../utils/chunkDivisions.js";
 
+/**
+ * Service for managing division creation and player assignment.
+ * Handles business logic for creating divisions and auto-assigning players
+ * based on skill level.
+ */
 export class DivisionService {
     /**
-     * @param {{
-     *   seasons: any,
-     *   signups: any,
-     *   divisions: any
-     * }} deps
+     * @param {{ seasons: SeasonRepository, signups: SignupRepository, divisions: DivisionRepository }} deps
+     * @param {SeasonRepository} deps.seasons Season repository instance.
+     * @param {SignupRepository} deps.signups Signup repository instance.
+     * @param {DivisionRepository} deps.divisions Division repository instance.
      */
     constructor({ seasons, signups, divisions }) {
         this.seasons = seasons;
@@ -17,12 +21,25 @@ export class DivisionService {
         this.MAX_DIVISIONS = 10;
     }
 
+    /**
+     * Get current season for guild or throw error.
+     * @private
+     * @param {string} guildId
+     * @returns {Promise<Season>}
+     * @throws {DomainError} If no season found.
+     */
     async _getSeasonOrThrow(guildId) {
         const season = await this.seasons.getCurrentForGuild(guildId);
         if (!season) throw new DomainError("NO_SEASON", "No season found.");
         return season;
     }
 
+    /**
+     * Assert that signups are closed for the season.
+     * @private
+     * @param {Season} season
+     * @throws {DomainError} If signups are not closed.
+     */
     _assertSignupsClosed(season) {
         if (season.status !== "signups_closed") {
             throw new DomainError(
@@ -32,6 +49,12 @@ export class DivisionService {
         }
     }
 
+    /**
+     * Calculate maximum divisions allowed based on player count.
+     * @private
+     * @param {number} playerCount
+     * @returns {number} Maximum divisions allowed (minimum 1).
+     */
     _maxDivisionsAllowed(playerCount) {
         // Enforce min players per division, but never allow 0 divisions
         return Math.max(1, Math.floor(playerCount / this.MIN_PER_DIVISION));
@@ -39,7 +62,10 @@ export class DivisionService {
 
     /**
      * Create divisions for the current season.
+     * Requires signups to be closed and validates player count.
      * @param {{ guildId: string, count: number }} input
+     * @returns {Promise<{season: Season, divisions: Array.<Division>}>}
+     * @throws {DomainError} If signups not closed, invalid count, too few players, or divisions already exist.
      */
     async createDivisions({ guildId, count }) {
         const season = await this._getSeasonOrThrow(guildId);
@@ -92,9 +118,12 @@ export class DivisionService {
     }
 
     /**
-     * Auto-assign players into divisions by skill grouping:
+     * Auto-assign players into divisions by skill grouping.
      * Div 1 gets highest averages, Div 2 next, etc.
+     * Clears existing assignments before reassigning.
      * @param {{ guildId: string }} input
+     * @returns {Promise<{season: Season, divisions: Array.<Division>, counts: Array.<number>}>}
+     * @throws {DomainError} If signups not closed, no divisions exist, or too few players.
      */
     async assignAuto({ guildId }) {
         const season = await this._getSeasonOrThrow(guildId);

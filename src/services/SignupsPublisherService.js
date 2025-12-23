@@ -1,9 +1,15 @@
 import { EmbedBuilder } from "discord.js";
 import { DomainError } from "../utils/DomainError.js";
 
+/**
+ * Service for publishing and refreshing signup messages in Discord.
+ * Manages Discord embed creation and message updates for the signups list.
+ */
 export class SignupsPublisherService {
     /**
-     * @param {{ seasons: any, signups: any }} deps
+     * @param {{ seasons: SeasonRepository, signups: SignupRepository }} deps
+     * @param {SeasonRepository} deps.seasons Season repository instance.
+     * @param {SignupRepository} deps.signups Signup repository instance.
      */
     constructor({ seasons, signups }) {
         this.seasons = seasons;
@@ -11,7 +17,10 @@ export class SignupsPublisherService {
     }
 
     /**
-     * Post (or repost) the signups list to a channel and remember the message ID
+     * Post (or repost) the signups list to a channel and remember the message ID.
+     * @param {{ client: Client, guildId: string, channelId: string }} params
+     * @returns {Promise<{season: Season, channelId: string, messageId: string}>}
+     * @throws {DomainError} If no season, signups not open, or bad channel.
      */
     async publish({ client, guildId, channelId }) {
         const season = await this.seasons.getCurrentForGuild(guildId);
@@ -46,7 +55,10 @@ export class SignupsPublisherService {
     }
 
     /**
-     * Refresh the published signups message if configured
+     * Refresh the published signups message if configured.
+     * @param {{ client: Client, guildId: string }} params
+     * @returns {Promise<{updated: boolean, skipped: boolean, count: number}>}
+     * @throws {DomainError} If no season.
      */
     async refresh({ client, guildId }) {
         const season = await this.seasons.getCurrentForGuild(guildId);

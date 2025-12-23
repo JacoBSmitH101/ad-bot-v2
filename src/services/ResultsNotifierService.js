@@ -1,4 +1,3 @@
-// src/services/ResultsNotifierService.js
 import {
     EmbedBuilder,
     ActionRowBuilder,
@@ -6,11 +5,27 @@ import {
     ButtonStyle,
 } from "discord.js";
 
+/**
+ * Service for sending result verification notifications to admins.
+ * Sends Discord embeds with confirm/reject buttons for reported matches.
+ */
 export class ResultsNotifierService {
+    /**
+     * @param {{ config: {resultsReviewChannelId: (string|null), adminUserId: (string|null)} }} deps
+     * @param {Object} deps.config Configuration object.
+     * @param {string|null} deps.config.resultsReviewChannelId Discord channel ID for review messages.
+     * @param {string|null} deps.config.adminUserId Discord user ID for admin DM fallback.
+     */
     constructor({ config }) {
         this.config = config;
     }
 
+    /**
+     * Send a verification embed for a reported match result.
+     * Sends to configured review channel or admin DM.
+     * @param {{ client: Client, guildId: string, match: Match, result: MatchResult }} params
+     * @returns {Promise<void>}
+     */
     async sendVerification({ client, guildId, match, result }) {
         const embed = new EmbedBuilder()
             .setTitle("🔍 Result awaiting verification")

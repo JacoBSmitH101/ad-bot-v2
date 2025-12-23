@@ -1,7 +1,18 @@
 import { DomainError } from "../utils/DomainError.js";
 import { roundRobin } from "../utils/roundRobin.js";
 
+/**
+ * Service for generating and approving match schedules.
+ * Creates round-robin schedules per division and manages schedule proposals.
+ */
 export class ScheduleService {
+    /**
+     * @param {{ seasons: SeasonRepository, divisions: DivisionRepository, schedules: ScheduleRepository, matches: MatchRepository }} deps
+     * @param {SeasonRepository} deps.seasons Season repository instance.
+     * @param {DivisionRepository} deps.divisions Division repository instance.
+     * @param {ScheduleRepository} deps.schedules Schedule repository instance.
+     * @param {MatchRepository} deps.matches Match repository instance.
+     */
     constructor({ seasons, divisions, schedules, matches }) {
         this.seasons = seasons;
         this.divisions = divisions;
@@ -9,6 +20,13 @@ export class ScheduleService {
         this.matches = matches;
     }
 
+    /**
+     * Generate a schedule proposal for the current season.
+     * Creates round-robin pairings for each division.
+     * @param {{ guildId: string, createdBy: string }} params
+     * @returns {Promise<{season: Season, proposal: ScheduleProposal}>}
+     * @throws {DomainError} If no season, signups not closed, or no divisions exist.
+     */
     async propose({ guildId, createdBy }) {
         const season = await this.seasons.getCurrentForGuild(guildId);
         if (!season) throw new DomainError("NO_SEASON", "No season found.");
@@ -53,6 +71,13 @@ export class ScheduleService {
         return { season, proposal };
     }
 
+    /**
+     * Approve the latest schedule proposal and create matches.
+     * Clears existing matches before creating new ones.
+     * @param {{ guildId: string }} params
+     * @returns {Promise<{season: Season, createdMatches: number}>}
+     * @throws {DomainError} If no season, no proposal found, or proposal already approved.
+     */
     async approveLatest({ guildId }) {
         const season = await this.seasons.getCurrentForGuild(guildId);
         if (!season) throw new DomainError("NO_SEASON", "No season found.");
@@ -95,6 +120,13 @@ export class ScheduleService {
 
         return { season, createdMatches: rows.length };
     }
+
+    /**
+     * Preview a specific division and week from the latest schedule proposal.
+     * @param {{ guildId: string, divisionName: string, week: number }} params
+     * @returns {Promise<{season: Season, proposal: ScheduleProposal, division: {id: number, name: string}, week: number, totalWeeks: number, pairs: Array.<Array.<string>>}>}
+     * @throws {DomainError} If no season, no proposal, division not found, or invalid week.
+     */
     async preview({ guildId, divisionName, week }) {
         const season = await this.seasons.getCurrentForGuild(guildId);
         if (!season) throw new DomainError("NO_SEASON", "No season found.");

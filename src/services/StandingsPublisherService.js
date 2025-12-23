@@ -1,7 +1,12 @@
-// src/services/StandingsPublisherService.js
 import { DomainError } from "../utils/DomainError.js";
 import { EmbedBuilder } from "discord.js";
 
+/**
+ * Formats a player ID for display.
+ * @private
+ * @param {string} id
+ * @returns {string}
+ */
 function fmtPlayer(id) {
     return id.startsWith("FAKE_") ? `\`${id}\`` : `<@${id}>`;
 }
@@ -29,12 +34,24 @@ function buildRankMap(rows) {
     return map;
 }
 
+/**
+ * Format rank movement arrow.
+ * @private
+ * @param {number} delta
+ * @returns {string}
+ */
 function arrow(delta) {
     if (delta < 0) return `🟢▲${Math.abs(delta)}`;
     if (delta > 0) return `🔴▼${delta}`;
     return "⚪—";
 }
 
+/**
+ * Build a summary embed for standings.
+ * @private
+ * @param {{ seasonName: string, divisionName: string, standings: Array.<StandingsRow>, lastUpdateText: (string|null) }} params
+ * @returns {EmbedBuilder}
+ */
 function buildSummaryEmbed({
     seasonName,
     divisionName,
@@ -58,9 +75,15 @@ function buildSummaryEmbed({
         .setTimestamp();
 }
 
+/**
+ * Service for publishing and refreshing standings messages in Discord.
+ * Manages Discord embed creation and message updates for division standings.
+ */
 export class StandingsPublisherService {
     /**
-     * @param {{ seasons: any, standings: any }} deps
+     * @param {{ seasons: SeasonRepository, standings: StandingsService }} deps
+     * @param {SeasonRepository} deps.seasons Season repository instance.
+     * @param {StandingsService} deps.standings Standings service instance.
      */
     constructor({ seasons, standings }) {
         this.seasons = seasons;
@@ -69,6 +92,10 @@ export class StandingsPublisherService {
 
     /**
      * Create (or recreate) standings messages in a channel and store their message IDs.
+     * Posts one message per division.
+     * @param {{ client: Client, guildId: string, channelId: string }} params
+     * @returns {Promise<{season: Season, channelId: string, messageIds: Object}>}
+     * @throws {DomainError} If no season, invalid state, or bad channel.
      */
     async publish({ client, guildId, channelId }) {
         const season = await this.seasons.getCurrentForGuild(guildId);
@@ -119,7 +146,11 @@ export class StandingsPublisherService {
 
     /**
      * Recompute standings and edit existing published messages.
-     * Call this after every confirm.
+     * Call this after every confirm. Optionally includes movement context.
+     * @param {{ client: Client, guildId: string, context: (Object|null) }} params
+     * @param {Object|null} [params.context] Optional context with divisionId, beforeStandings, afterStandings, playerAId, playerBId, scoreText, actorName
+     * @returns {Promise<{updated: number, skipped: boolean}>}
+     * @throws {DomainError} If no season.
      */
     async refresh({ client, guildId, context = null }) {
         const season = await this.seasons.getCurrentForGuild(guildId);
