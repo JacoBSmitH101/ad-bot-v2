@@ -127,6 +127,29 @@ export class SeasonRepository {
         if (error) throw error;
         return data;
     }
+    async setSignupsChannel(seasonId, channelId) {
+        const { data, error } = await this.supabase
+            .from("seasons")
+            .update({ signups_channel_id: channelId })
+            .eq("id", seasonId)
+            .select("*")
+            .single();
+
+        if (error) throw error;
+        return data;
+    }
+
+    async setSignupsMessageId(seasonId, messageId) {
+        const { data, error } = await this.supabase
+            .from("seasons")
+            .update({ signups_message_id: messageId })
+            .eq("id", seasonId)
+            .select("*")
+            .single();
+
+        if (error) throw error;
+        return data;
+    }
     async setFixturesChannel(seasonId, channelId) {
         const { data, error } = await this.supabase
             .from("seasons")

@@ -36,4 +36,11 @@ export async function execute(interaction) {
         .setTimestamp();
 
     await interaction.reply({ embeds: [embed] });
+
+    // keep the published signup list in sync
+    await interaction.client.services.signupsPublisher
+        .refresh({ client: interaction.client, guildId: interaction.guildId })
+        .catch((err) =>
+            console.error("Failed to refresh published signups:", err)
+        );
 }

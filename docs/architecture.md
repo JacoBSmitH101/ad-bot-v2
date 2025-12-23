@@ -1,86 +1,62 @@
-# 2. Architecture (Code Structure)
+# Architecture
 
-## Layered Design
+## Layers (actual)
 
-Discord Commands
-↓
-Domain / Services (business rules)
-↓
-Repositories (DB access)
-↓
-Database
+Discord commands / button handlers  
+↓ call  
+Services (domain + orchestration)  
+↓ call  
+Repositories (Supabase access)  
+↓  
+Supabase (PostgreSQL)
 
----
-
-## Discord Commands
-
-Responsibilities:
-
--   parse slash commands
--   handle button interactions
--   permission checks
--   format embeds/messages
-
-Commands do not:
-
--   enforce league rules
--   talk to the database
--   generate schedules
+`src/index.js` wires a single Supabase client and instantiates repositories + services once, then registers slash commands dynamically from `src/discord/commands`.
 
 ---
 
-## Services (Domain Logic)
+## Discord Entrypoints
 
-Services enforce:
+-   Slash commands in `src/discord/commands/*` handle parsing, ephemeral errors, and embed formatting.
+-   Button handlers in `src/discord/handlers/*` gate admin actions (results + standings) and call services.
+-   Command modules never import Supabase directly; they rely on `interaction.client.services` / `interaction.client.repos`.
 
--   season lifecycle
--   signup rules
--   division assignment
--   scheduling
--   result confirmation
--   standings calculation
+---
 
-Examples:
+## Services
 
--   SeasonService
--   DivisionService
--   ScheduleService
--   MatchService
--   StandingsService
+-   SeasonService: lifecycle guards (open/close signups, start/close season).
+-   SignupService: validation, rounding, dropout, and player upserts.
+-   DivisionService: min/max division rules, auto assignment by average.
+-   ScheduleService: proposal/approval pipeline and match creation.
+-   MatchesService: player-facing match views/unreported lookups.
+-   ResultService: score validation, match selection, report/confirm/reject/reset/void flows.
+-   Publisher services: signups, fixtures, standings embeds with stored message/channel ids.
+-   StandingsService/MatchStatsService/ResultsNotifierService provide derived data + external stats fetch.
+
+Services do not know Discord types; they receive ids/strings and throw DomainError on violations.
 
 ---
 
 ## Repositories
 
-Repositories:
+Thin Supabase wrappers per table:
 
--   read/write database rows
--   contain no business logic
-
----
-
-## Database Client (db)
-
--   Single shared client
--   Created once at startup
--   Used only by repositories
+-   Seasons, Players, Signups, Divisions (+division_players), ScheduleProposals, Matches, MatchResults.
+-   Responsible only for SQL-like reads/writes and small convenience ordering/filtering.
 
 ---
 
-## Object Lifecycle
+## Config / Environment
 
-At startup:
-const seasonRepo = new SeasonRepository(db);
-const seasonService = new SeasonService(seasonRepo);
+-   `.env` validated by `src/config/env.js` (Discord IDs/tokens, Supabase URL/service key, optional admin ids/roles, internal API for stats).
+-   Optional `SUPABASE_DB_SCHEMA` to target a non-public schema.
 
 ---
 
-## Golden Rules
+## Notable Flows
 
-1. Commands never contain business logic
-2. Services never contain Discord or SQL
-3. Repositories never contain rules
-4. DB client is created once
-5. State transitions live in one place
+-   Startup: ping Supabase, load commands, refresh published signups for each guild.
+-   Confirmation buttons: confirm → refresh standings embed (with movement), update fixtures.
+-   Publish flows remember channel/message ids so embeds can be refreshed on restart.
 
 ---

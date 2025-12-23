@@ -1,4 +1,4 @@
-import { SlashCommandBuilder, EmbedBuilder } from "discord.js";
+import { SlashCommandBuilder, EmbedBuilder, MessageFlags } from "discord.js";
 
 export const data = new SlashCommandBuilder()
     .setName("signup")
@@ -48,5 +48,12 @@ export async function execute(interaction) {
         });
     }
 
-    await interaction.reply({ embeds: [embed] });
+    await interaction.reply({ embeds: [embed], flags: MessageFlags.Ephemeral });
+
+    // Keep the published signup list updated
+    await interaction.client.services.signupsPublisher
+        .refresh({ client: interaction.client, guildId: interaction.guildId })
+        .catch((err) =>
+            console.error("Failed to refresh published signups:", err)
+        );
 }

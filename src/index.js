@@ -34,6 +34,7 @@ import { MatchesService } from "./services/MatchesService.js";
 import { FixturesPublisherService } from "./services/FixturesPublisherService.js";
 import { InternalApiClient } from "./services/InternalApiClient.js";
 import { MatchStatsService } from "./services/MatchStatsService.js";
+import { SignupsPublisherService } from "./services/SignupsPublisherService.js";
 
 async function dbPing() {
     const { error } = await supabase.from("seasons").select("id").limit(1);
@@ -120,6 +121,10 @@ client.services = {
         matches: client.repos.matches,
         divisions: client.repos.divisions,
     }),
+    signupsPublisher: new SignupsPublisherService({
+        seasons: client.repos.seasons,
+        signups: client.repos.signups,
+    }),
     matchStats: new MatchStatsService({ internalApi }),
     internalApi: internalApi,
     config: {
@@ -154,8 +159,20 @@ for (const file of commandFiles) {
     client.commands.set(mod.data.name, mod);
 }
 
-client.once(Events.ClientReady, () => {
+client.once(Events.ClientReady, async () => {
     console.log(`✅ Logged in as ${client.user.tag}`);
+
+    // Refresh published messages after restart so they stay in sync
+    for (const guild of client.guilds.cache.values()) {
+        await client.services.signupsPublisher
+            .refresh({ client, guildId: guild.id })
+            .catch((err) =>
+                console.error(
+                    `Failed to refresh signups for guild ${guild.id}:`,
+                    err?.message ?? err
+                )
+            );
+    }
 });
 
 client.on(Events.InteractionCreate, async (interaction) => {

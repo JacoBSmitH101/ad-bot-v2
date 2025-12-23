@@ -4,6 +4,7 @@ import {
     EmbedBuilder,
     MessageFlags,
 } from "discord.js";
+import { DomainError } from "../../utils/DomainError.js";
 
 export const data = new SlashCommandBuilder()
     .setName("signups")
@@ -12,10 +13,42 @@ export const data = new SlashCommandBuilder()
     .setDMPermission(false)
     .addSubcommand((s) =>
         s.setName("list").setDescription("List signups for the current season")
+    )
+    .addSubcommand((s) =>
+        s
+            .setName("publish")
+            .setDescription(
+                "Publish/refresh the signup list message in this channel"
+            )
     );
 
 export async function execute(interaction) {
     const sub = interaction.options.getSubcommand();
+    if (sub === "publish") {
+        await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+
+        try {
+            const { season } =
+                await interaction.client.services.signupsPublisher.publish({
+                    client: interaction.client,
+                    guildId: interaction.guildId,
+                    channelId: interaction.channelId,
+                });
+
+            await interaction.editReply(
+                `✅ Published signups for **${season.name}** in this channel.`
+            );
+        } catch (err) {
+            if (err instanceof DomainError) {
+                await interaction.editReply(`❌ ${err.message}`);
+                return;
+            }
+            console.error(err);
+            await interaction.editReply("❌ Something went wrong.");
+        }
+        return;
+    }
+
     if (sub !== "list") return;
 
     const season = await interaction.client.repos.seasons.getCurrentForGuild(

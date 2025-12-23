@@ -1,47 +1,35 @@
 ## Overview
 
-Discord-only darts league bot, rewritten cleanly with proper separation of concerns.
-Runs as a long-lived Node.js service on a Linux VM.
-
-No Challonge, no Autodarts API, no Discord threads (MVP).
+Discord-only darts league bot. Node.js (ESM) + Discord slash commands, backed by Supabase (PostgreSQL). Handles signups, divisions, scheduling, fixtures, results review, standings publishing, and Autodarts match links/stat lookups.
 
 ---
 
-## Runtime Model
+## Stack
 
--   Single VM
--   Two environments:
-    -   /home/jacob/Dev
-    -   /home/jacob/Prod
--   Each environment has its own .env
--   Same codebase, different configs
+-   Node 18+ (ESM)
+-   discord.js v14
+-   Supabase client (service role key)
+-   Azure DevOps pipelines in `azure-pipelines/` install deps then restart the service (no build step)
 
 ---
 
-## Process Management (systemd)
+## Running locally
 
-The bot runs as a systemd service.
-
-Benefits:
-
--   starts on boot
--   restarts on crash
--   centralised logging
-
-Useful commands:
-systemctl status league-bot-prod
-systemctl restart league-bot-prod
-journalctl -u league-bot-prod -f
+1) Copy `.env.example` (or create `.env`) with values for the keys validated in `src/config/env.js`:
+    -   `DISCORD_TOKEN`, `DISCORD_CLIENT_ID`, `GUILD_ID`
+    -   `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, optional `SUPABASE_DB_SCHEMA`
+    -   `INTERNAL_API_BASE_URL`, `INTERNAL_API_KEY` (used for match stats)
+    -   optional `RESULTS_REVIEW_CHANNEL`, `ADMIN_USER_ID`, `ADMIN_ROLE_ID`
+2) Install dependencies: `npm install`
+3) Register commands + run the bot: `npm run dev`  
+    (dev script registers slash commands then starts `src/index.js`)
 
 ---
 
-## Deployment
+## Deployment / Ops
 
-CI/CD (Azure DevOps):
+-   Designed to run as a long-lived service (systemd or similar) pointing at the same code and environment variables used locally.
+-   Pipelines simply pull, install, and restart; no Docker image is required.
+-   On restart the bot refreshes any published signup embeds to stay in sync.
 
--   pull latest code
--   install deps
--   build TypeScript
--   restart systemd service
-
-No Docker required for MVP.
+---
