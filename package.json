@@ -10,7 +10,8 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "dev": "node scripts/registerCommands.js && node src/index.js",
-    "seed:fake": "node scripts/seedFakeSingups.js"
+    "seed:fake": "node scripts/seedFakeSingups.js",
+    "docs": "jsdoc -c jsdoc.json"
   },
   "author": "",
   "license": "ISC",
@@ -19,5 +20,10 @@
     "discord.js": "^14.25.1",
     "dotenv": "^17.2.3",
     "zod": "^4.2.1"
+  },
+  "devDependencies": {
+    "better-docs": "^2.7.3",
+    "clean-jsdoc-theme": "^4.3.0",
+    "jsdoc": "^4.0.5"
   }
 }
