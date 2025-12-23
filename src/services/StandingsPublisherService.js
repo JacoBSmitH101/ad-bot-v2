@@ -127,9 +127,9 @@ function buildSummaryEmbed({
                 avgText = " (n/a)";
             }
         }
-        return `${medal(idx)} **${fmtPlayer(r.discordUserId)}**${avgText} — **${
-            r.points
-        } pts**`;
+        return `${medal(idx)} **${idx + 1}.** **${fmtPlayer(
+            r.discordUserId
+        )}**${avgText} — **${r.points} pts**`;
     });
 
     const desc =

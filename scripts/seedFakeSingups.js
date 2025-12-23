@@ -10,7 +10,7 @@ if (process.env.NODE_ENV === "production") {
     throw new Error("Refusing to seed in production");
 }
 
-const FAKE_PLAYERS = 19;
+const FAKE_PLAYERS = 9;
 
 async function run() {
     // get latest season
