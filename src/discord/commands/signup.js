@@ -8,6 +8,22 @@ export const data = new SlashCommandBuilder()
     );
 
 export async function execute(interaction) {
+    const seasonConfig =
+        await interaction.client.repos.seasons.getCurrentForGuild(
+            interaction.guildId
+        );
+
+    if (
+        seasonConfig?.signups_channel_id &&
+        interaction.channelId !== seasonConfig.signups_channel_id
+    ) {
+        await interaction.reply({
+            content: `❌ Please use this command in <#${seasonConfig.signups_channel_id}>.`,
+            flags: MessageFlags.Ephemeral,
+        });
+        return;
+    }
+
     const avg = interaction.options.getNumber("avg", true);
 
     const { season, signup, isUpdate, previousAvg } =

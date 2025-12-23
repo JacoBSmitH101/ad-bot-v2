@@ -1,4 +1,4 @@
-import { SlashCommandBuilder, EmbedBuilder } from "discord.js";
+import { SlashCommandBuilder, EmbedBuilder, MessageFlags } from "discord.js";
 
 export const data = new SlashCommandBuilder()
     .setName("dropout")
@@ -7,6 +7,22 @@ export const data = new SlashCommandBuilder()
     );
 
 export async function execute(interaction) {
+    const seasonConfig =
+        await interaction.client.repos.seasons.getCurrentForGuild(
+            interaction.guildId
+        );
+
+    if (
+        seasonConfig?.signups_channel_id &&
+        interaction.channelId !== seasonConfig.signups_channel_id
+    ) {
+        await interaction.reply({
+            content: `❌ Please use this command in <#${seasonConfig.signups_channel_id}>.`,
+            flags: MessageFlags.Ephemeral,
+        });
+        return;
+    }
+
     const { season, previousAvg } =
         await interaction.client.services.signups.dropout({
             guildId: interaction.guildId,
