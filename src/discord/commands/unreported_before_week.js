@@ -6,6 +6,13 @@ import {
 } from "discord.js";
 import { DomainError } from "../../utils/DomainError.js";
 
+/**
+ * Discord slash command: /unreported_before_week
+ * Admin-only command to find matches from earlier weeks that haven't been reported or confirmed.
+ * Useful for identifying overdue matches that need attention.
+ * @module commands/unreported_before_week
+ */
+
 export const data = new SlashCommandBuilder()
     .setName("unreported_before_week")
     .setDescription(
@@ -19,6 +26,13 @@ export const data = new SlashCommandBuilder()
             .setRequired(true)
     );
 
+/**
+ * Execute the /unreported_before_week command.
+ * Validates admin permissions and week number, then displays unreported matches grouped by week.
+ * @param {Object} interaction - Discord ChatInputCommandInteraction object.
+ * @returns {Promise<void>}
+ * @throws {DomainError} If no season, invalid state, or query fails.
+ */
 export async function execute(interaction) {
     const cfg = interaction.client.services.config;
     const isAdmin =

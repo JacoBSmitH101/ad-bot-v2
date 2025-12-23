@@ -6,6 +6,13 @@ import {
 } from "discord.js";
 import { DomainError } from "../../utils/DomainError.js";
 
+/**
+ * Discord slash command: /signups
+ * Admin-only command group for managing signup displays.
+ * Subcommands: list, publish
+ * @module commands/signups
+ */
+
 export const data = new SlashCommandBuilder()
     .setName("signups")
     .setDescription("Admin signup tools")
@@ -22,6 +29,13 @@ export const data = new SlashCommandBuilder()
             )
     );
 
+/**
+ * Execute the /signups command.
+ * Routes to appropriate subcommand: list signups or publish/refresh signup list in channel.
+ * @param {Object} interaction - Discord ChatInputCommandInteraction object.
+ * @returns {Promise<void>}
+ * @throws {DomainError} If no season or publish fails.
+ */
 export async function execute(interaction) {
     const sub = interaction.options.getSubcommand();
     if (sub === "publish") {

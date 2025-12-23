@@ -1,4 +1,3 @@
-// src/discord/commands/standings.js
 import {
     SlashCommandBuilder,
     EmbedBuilder,
@@ -8,6 +7,12 @@ import {
     MessageFlags,
 } from "discord.js";
 import { DomainError } from "../../utils/DomainError.js";
+
+/**
+ * Discord slash command: /standings
+ * Display current season standings. Shows summary by default, full details with "full" option.
+ * @module commands/standings
+ */
 
 export const data = new SlashCommandBuilder()
     .setName("standings")
@@ -23,6 +28,12 @@ export const data = new SlashCommandBuilder()
             .setRequired(false)
     );
 
+/**
+ * Format player ID for display.
+ * @private
+ * @param {string} id
+ * @returns {string}
+ */
 function fmtPlayer(id) {
     return id.startsWith("FAKE_") ? `\`${id}\`` : `<@${id}>`;
 }
@@ -31,6 +42,12 @@ function medal(i) {
     return i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : "•";
 }
 
+/**
+ * Build summary embeds (top 3 + points only).
+ * @private
+ * @param {{ season: Season, divisions: Array.<{division: Division, standings: Array.<StandingsRow>}> }} params
+ * @returns {Array.<EmbedBuilder>}
+ */
 function buildSummaryEmbeds({ season, divisions }) {
     return divisions.map(({ division, standings }) => {
         const lines = standings.map(
@@ -47,6 +64,12 @@ function buildSummaryEmbeds({ season, divisions }) {
     });
 }
 
+/**
+ * Build full embeds (all stats: wins, losses, legs, etc.).
+ * @private
+ * @param {{ season: Season, divisions: Array.<{division: Division, standings: Array.<StandingsRow>}> }} params
+ * @returns {Array.<EmbedBuilder>}
+ */
 function buildFullEmbeds({ season, divisions }) {
     return divisions.map(({ division, standings }) => {
         const lines = standings.map((r, idx) => {
@@ -70,6 +93,13 @@ function buildFullEmbeds({ season, divisions }) {
     });
 }
 
+/**
+ * Execute the /standings command.
+ * Fetches standings and displays them as embeds. Summary view includes interactive buttons.
+ * @param {Object} interaction - Discord ChatInputCommandInteraction object.
+ * @returns {Promise<void>}
+ * @throws {DomainError} If no season or invalid season state.
+ */
 export async function execute(interaction) {
     const view = interaction.options.getString("view") ?? "summary";
 

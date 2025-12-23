@@ -28,4 +28,3 @@ export const adminUserIds = new Set(
         .map((s) => s.trim())
         .filter(Boolean)
 );
-//testing CICD azure devops pipelines

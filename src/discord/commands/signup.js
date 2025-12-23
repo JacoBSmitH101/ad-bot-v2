@@ -1,5 +1,11 @@
 import { SlashCommandBuilder, EmbedBuilder, MessageFlags } from "discord.js";
 
+/**
+ * Discord slash command: /signup
+ * Allows players to sign up for the current season with their 3-dart average.
+ * @module commands/signup
+ */
+
 export const data = new SlashCommandBuilder()
     .setName("signup")
     .setDescription("Sign up for the current season")
@@ -7,6 +13,12 @@ export const data = new SlashCommandBuilder()
         o.setName("avg").setDescription("Your 3-dart average").setRequired(true)
     );
 
+/**
+ * Execute the /signup command.
+ * Validates channel restrictions, creates/updates signup, and refreshes published signups.
+ * @param {Object} interaction - Discord ChatInputCommandInteraction object.
+ * @returns {Promise<void>}
+ */
 export async function execute(interaction) {
     const seasonConfig =
         await interaction.client.repos.seasons.getCurrentForGuild(

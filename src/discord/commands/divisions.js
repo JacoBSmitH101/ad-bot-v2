@@ -4,6 +4,13 @@ import {
     EmbedBuilder,
 } from "discord.js";
 
+/**
+ * Discord slash command: /divisions
+ * Admin-only command group for managing divisions.
+ * Subcommands: create, assign-auto
+ * @module commands/divisions
+ */
+
 export const data = new SlashCommandBuilder()
     .setName("divisions")
     .setDescription("Division admin commands")
@@ -28,6 +35,12 @@ export const data = new SlashCommandBuilder()
             )
     );
 
+/**
+ * Execute the /divisions command.
+ * Routes to appropriate subcommand handler: create divisions or auto-assign players.
+ * @param {Object} interaction - Discord ChatInputCommandInteraction object.
+ * @returns {Promise<void>}
+ */
 export async function execute(interaction) {
     const sub = interaction.options.getSubcommand();
 

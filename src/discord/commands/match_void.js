@@ -1,4 +1,3 @@
-// src/discord/commands/match_void.js
 import {
     SlashCommandBuilder,
     EmbedBuilder,
@@ -6,6 +5,13 @@ import {
     PermissionFlagsBits,
 } from "discord.js";
 import { DomainError } from "../../utils/DomainError.js";
+
+/**
+ * Discord slash command: /match-void
+ * Admin-only command to void a match (no points awarded) and delete its result.
+ * Optionally clears stored result message references. Refreshes standings and fixtures after voiding.
+ * @module commands/match_void
+ */
 
 export const data = new SlashCommandBuilder()
     .setName("match-void")
@@ -21,6 +27,13 @@ export const data = new SlashCommandBuilder()
     )
     .setDefaultMemberPermissions(PermissionFlagsBits.Administrator);
 
+/**
+ * Execute the /match-void command.
+ * Voids match, deletes result, optionally clears message references, and refreshes published messages.
+ * @param {Object} interaction - Discord ChatInputCommandInteraction object.
+ * @returns {Promise<void>}
+ * @throws {DomainError} If match not found, invalid state, or void operation fails.
+ */
 export async function execute(interaction) {
     const matchId = interaction.options.getString("match_id", true).trim();
     const clearMsg =

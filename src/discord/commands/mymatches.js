@@ -1,11 +1,24 @@
-// src/discord/commands/mymatches.js
 import { SlashCommandBuilder, EmbedBuilder, MessageFlags } from "discord.js";
 import { DomainError } from "../../utils/DomainError.js";
+
+/**
+ * Discord slash command: /mymatches
+ * Displays all matches for the current user in the current season, grouped by week.
+ * Shows match status (scheduled, reported, confirmed) and opponent information.
+ * @module commands/mymatches
+ */
 
 export const data = new SlashCommandBuilder()
     .setName("mymatches")
     .setDescription("Show your matches for the current season");
 
+/**
+ * Execute the /mymatches command.
+ * Fetches and displays the user's matches grouped by week with status indicators.
+ * @param {Object} interaction - Discord ChatInputCommandInteraction object.
+ * @returns {Promise<void>}
+ * @throws {DomainError} If no season or invalid season state.
+ */
 export async function execute(interaction) {
     try {
         const { season, weeks, next } =

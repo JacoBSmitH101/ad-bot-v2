@@ -1,4 +1,3 @@
-// src/discord/commands/autodarts_status.js
 import {
     SlashCommandBuilder,
     EmbedBuilder,
@@ -7,11 +6,25 @@ import {
 } from "discord.js";
 import { DomainError } from "../../utils/DomainError.js";
 
+/**
+ * Discord slash command: /autodarts-status
+ * Admin-only command to display the current Autodarts authentication status.
+ * Shows connection status, last refresh time, token expiry, errors, and queue size.
+ * @module commands/autodarts_status
+ */
+
 export const data = new SlashCommandBuilder()
     .setName("autodarts-status")
     .setDescription("[ADMIN] Show internal Autodarts auth status")
     .setDefaultMemberPermissions(PermissionFlagsBits.Administrator);
 
+/**
+ * Execute the /autodarts-status command.
+ * Fetches and displays Autodarts authentication status information.
+ * @param {Object} interaction - Discord ChatInputCommandInteraction object.
+ * @returns {Promise<void>}
+ * @throws {DomainError} If fetching status fails.
+ */
 export async function execute(interaction) {
     try {
         const s =

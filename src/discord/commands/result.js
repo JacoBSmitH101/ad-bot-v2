@@ -1,6 +1,11 @@
-// src/discord/commands/result.js
 import { SlashCommandBuilder, EmbedBuilder, MessageFlags } from "discord.js";
 import { DomainError } from "../../utils/DomainError.js";
+
+/**
+ * Discord slash command: /result
+ * Submit a match result for admin verification. Requires Autodarts match URL as proof.
+ * @module commands/result
+ */
 
 export const data = new SlashCommandBuilder()
     .setName("result")
@@ -24,6 +29,12 @@ export const data = new SlashCommandBuilder()
         opt.setName("url").setDescription("Proof URL").setRequired(true)
     );
 
+/**
+ * Validate that URL is a valid Autodarts match link.
+ * @private
+ * @param {string} url
+ * @returns {boolean}
+ */
 function validateAutodartsMatchUrl(url) {
     const regex =
         /^https:\/\/play\.autodarts\.io\/history\/matches\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -31,6 +42,13 @@ function validateAutodartsMatchUrl(url) {
     return regex.test(url);
 }
 
+/**
+ * Execute the /result command.
+ * Validates Autodarts URL, submits result, stores message reference, and sends verification notification.
+ * @param {Object} interaction - Discord ChatInputCommandInteraction object.
+ * @returns {Promise<void>}
+ * @throws {DomainError} If URL invalid, season not active, no match found, or other validation errors.
+ */
 export async function execute(interaction) {
     const opponent = interaction.options.getUser("opponent", true);
     const you = interaction.options.getInteger("you", true);

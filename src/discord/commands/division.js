@@ -5,6 +5,13 @@ import {
     MessageFlags,
 } from "discord.js";
 
+/**
+ * Discord slash command: /division
+ * Admin-only command group for viewing division information.
+ * Subcommands: list
+ * @module commands/division
+ */
+
 export const data = new SlashCommandBuilder()
     .setName("division")
     .setDescription("Division tools")
@@ -14,6 +21,12 @@ export const data = new SlashCommandBuilder()
         s.setName("list").setDescription("List players in each division")
     );
 
+/**
+ * Execute the /division command.
+ * Routes to the list subcommand to display all divisions and their assigned players.
+ * @param {Object} interaction - Discord ChatInputCommandInteraction object.
+ * @returns {Promise<void>}
+ */
 export async function execute(interaction) {
     const season = await interaction.client.repos.seasons.getCurrentForGuild(
         interaction.guildId

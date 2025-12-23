@@ -1,4 +1,3 @@
-// src/discord/commands/autodarts_set_token.js
 import {
     SlashCommandBuilder,
     EmbedBuilder,
@@ -6,6 +5,13 @@ import {
     PermissionFlagsBits,
 } from "discord.js";
 import { DomainError } from "../../utils/DomainError.js";
+
+/**
+ * Discord slash command: /autodarts-set-token
+ * Admin-only command to set the Autodarts refresh token on the internal API.
+ * The bot never stores or logs the token; it's passed directly to the API.
+ * @module commands/autodarts_set_token
+ */
 
 export const data = new SlashCommandBuilder()
     .setName("autodarts-set-token")
@@ -20,6 +26,13 @@ export const data = new SlashCommandBuilder()
     )
     .setDefaultMemberPermissions(PermissionFlagsBits.Administrator);
 
+/**
+ * Execute the /autodarts-set-token command.
+ * Sets the refresh token on the internal API. Response is always ephemeral for security.
+ * @param {Object} interaction - Discord ChatInputCommandInteraction object.
+ * @returns {Promise<void>}
+ * @throws {DomainError} If setting the token fails.
+ */
 export async function execute(interaction) {
     const refreshToken = interaction.options
         .getString("refresh_token", true)

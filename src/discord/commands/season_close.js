@@ -1,4 +1,3 @@
-// src/discord/commands/season_close.js
 import {
     SlashCommandBuilder,
     EmbedBuilder,
@@ -7,11 +6,25 @@ import {
 } from "discord.js";
 import { DomainError } from "../../utils/DomainError.js";
 
+/**
+ * Discord slash command: /season-close
+ * Admin-only command to close the current season, locking it from further changes.
+ * Refreshes standings and fixtures after closing.
+ * @module commands/season_close
+ */
+
 export const data = new SlashCommandBuilder()
     .setName("season-close")
     .setDescription("[ADMIN] Close the current season (locks it)")
     .setDefaultMemberPermissions(PermissionFlagsBits.Administrator);
 
+/**
+ * Execute the /season-close command.
+ * Closes the season and refreshes published messages.
+ * @param {Object} interaction - Discord ChatInputCommandInteraction object.
+ * @returns {Promise<void>}
+ * @throws {DomainError} If no season, invalid state, or close fails.
+ */
 export async function execute(interaction) {
     await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 

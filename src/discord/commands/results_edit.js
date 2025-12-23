@@ -1,4 +1,3 @@
-// src/discord/commands/result_edit.js
 import {
     SlashCommandBuilder,
     EmbedBuilder,
@@ -6,6 +5,13 @@ import {
     PermissionFlagsBits,
 } from "discord.js";
 import { DomainError } from "../../utils/DomainError.js";
+
+/**
+ * Discord slash command: /result-edit
+ * Admin-only command to edit the stored result (legs A and B) for a match.
+ * Optionally updates the proof URL. Refreshes standings and fixtures after editing.
+ * @module commands/results_edit
+ */
 
 export const data = new SlashCommandBuilder()
     .setName("result-edit")
@@ -33,6 +39,13 @@ export const data = new SlashCommandBuilder()
     )
     .setDefaultMemberPermissions(PermissionFlagsBits.Administrator);
 
+/**
+ * Execute the /result-edit command.
+ * Updates match result scores and optionally proof URL, then refreshes published messages.
+ * @param {Object} interaction - Discord ChatInputCommandInteraction object.
+ * @returns {Promise<void>}
+ * @throws {DomainError} If match not found, invalid state, or edit fails.
+ */
 export async function execute(interaction) {
     const matchId = interaction.options.getString("match_id", true).trim();
     const legsA = interaction.options.getInteger("legs_a", true);

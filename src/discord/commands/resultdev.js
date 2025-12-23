@@ -1,4 +1,3 @@
-// src/discord/commands/resultdev.js
 import {
     SlashCommandBuilder,
     EmbedBuilder,
@@ -6,6 +5,13 @@ import {
     PermissionFlagsBits,
 } from "discord.js";
 import { DomainError } from "../../utils/DomainError.js";
+
+/**
+ * Discord slash command: /resultdev
+ * Development-only command to submit a result against a fake player ID.
+ * Only available in non-production environments. Used for testing with fake players.
+ * @module commands/resultdev
+ */
 
 export const data = new SlashCommandBuilder()
     .setName("resultdev")
@@ -29,6 +35,13 @@ export const data = new SlashCommandBuilder()
         opt.setName("url").setDescription("Proof URL").setRequired(true)
     )
     .setDefaultMemberPermissions(PermissionFlagsBits.Administrator);
+
+/**
+ * Validate that URL is a valid Autodarts match link.
+ * @private
+ * @param {string} url
+ * @returns {boolean}
+ */
 function validateAutodartsMatchUrl(url) {
     const regex =
         /^https:\/\/play\.autodarts\.io\/history\/matches\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -36,6 +49,13 @@ function validateAutodartsMatchUrl(url) {
     return regex.test(url);
 }
 
+/**
+ * Execute the /resultdev command.
+ * Validates environment, Autodarts URL, submits result against fake player, and sends verification.
+ * @param {Object} interaction - Discord ChatInputCommandInteraction object.
+ * @returns {Promise<void>}
+ * @throws {DomainError} If in production, URL invalid, or submission fails.
+ */
 export async function execute(interaction) {
     const opponentId = interaction.options
         .getString("opponent_id", true)

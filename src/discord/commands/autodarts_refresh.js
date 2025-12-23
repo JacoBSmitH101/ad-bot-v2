@@ -1,4 +1,3 @@
-// src/discord/commands/autodarts_refresh.js
 import {
     SlashCommandBuilder,
     EmbedBuilder,
@@ -7,6 +6,13 @@ import {
 } from "discord.js";
 import { DomainError } from "../../utils/DomainError.js";
 
+/**
+ * Discord slash command: /autodarts-refresh
+ * Admin-only command to force refresh the Autodarts access token via the internal API.
+ * Used for troubleshooting authentication issues with the Autodarts integration.
+ * @module commands/autodarts_refresh
+ */
+
 export const data = new SlashCommandBuilder()
     .setName("autodarts-refresh")
     .setDescription(
@@ -14,6 +20,13 @@ export const data = new SlashCommandBuilder()
     )
     .setDefaultMemberPermissions(PermissionFlagsBits.Administrator);
 
+/**
+ * Execute the /autodarts-refresh command.
+ * Triggers a refresh of the Autodarts access token through the internal API.
+ * @param {Object} interaction - Discord ChatInputCommandInteraction object.
+ * @returns {Promise<void>}
+ * @throws {DomainError} If the refresh fails.
+ */
 export async function execute(interaction) {
     await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 

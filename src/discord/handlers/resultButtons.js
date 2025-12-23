@@ -26,9 +26,8 @@ export async function handleResultButtons(interaction) {
             interaction.member?.roles?.cache?.has(cfg.adminRoleId));
 
     if (!isAdmin) {
-        console.log(cfg);
         await interaction.reply({
-            content: "❌ You don’t have permission to do that.",
+            content: "❌ You don't have permission to do that.",
             flags: MessageFlags.Ephemeral,
         });
         return true;

@@ -4,6 +4,13 @@ import {
     MessageFlags,
 } from "discord.js";
 
+/**
+ * Discord slash command: /season
+ * Admin-only command group for managing season lifecycle.
+ * Subcommands: create, signups-open, signups-close, start
+ * @module commands/season
+ */
+
 export const data = new SlashCommandBuilder()
     .setName("season")
     .setDescription("Season admin commands")
@@ -44,10 +51,15 @@ export const data = new SlashCommandBuilder()
             .setDescription("Start the current season (move to active)")
     );
 
+/**
+ * Execute the /season command.
+ * Routes to appropriate subcommand handler based on interaction options.
+ * @param {Object} interaction - Discord ChatInputCommandInteraction object.
+ * @returns {Promise<void>}
+ */
 export async function execute(interaction) {
     const sub = interaction.options.getSubcommand();
     await interaction.deferReply();
-    console.log("DEFERRED");
 
     if (sub === "create") {
         const name = interaction.options.getString("name", true);

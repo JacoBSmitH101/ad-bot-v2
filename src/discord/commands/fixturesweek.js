@@ -5,6 +5,13 @@ import {
 } from "discord.js";
 import { DomainError } from "../../utils/DomainError.js";
 
+/**
+ * Discord slash command: /fixturesweek
+ * Admin-only command to change which week the published fixtures message displays.
+ * Updates the season's fixtures_week field and refreshes the message.
+ * @module commands/fixturesweek
+ */
+
 export const data = new SlashCommandBuilder()
     .setName("fixturesweek")
     .setDescription("[ADMIN] Set which week the fixtures message shows")
@@ -13,6 +20,13 @@ export const data = new SlashCommandBuilder()
         opt.setName("week").setDescription("Week number").setRequired(true)
     );
 
+/**
+ * Execute the /fixturesweek command.
+ * Validates admin permissions and updates the displayed week for fixtures.
+ * @param {Object} interaction - Discord ChatInputCommandInteraction object.
+ * @returns {Promise<void>}
+ * @throws {DomainError} If no season, invalid state, or invalid week.
+ */
 export async function execute(interaction) {
     const cfg = interaction.client.services.config;
     const isAdmin =

@@ -4,6 +4,13 @@ import {
     EmbedBuilder,
 } from "discord.js";
 
+/**
+ * Discord slash command: /schedule
+ * Admin-only command group for managing match schedules.
+ * Subcommands: propose, approve, preview
+ * @module commands/schedule
+ */
+
 export const data = new SlashCommandBuilder()
     .setName("schedule")
     .setDescription("Scheduling tools")
@@ -35,6 +42,12 @@ export const data = new SlashCommandBuilder()
             )
     );
 
+/**
+ * Execute the /schedule command.
+ * Routes to appropriate subcommand: propose schedule, approve latest proposal, or preview a week.
+ * @param {Object} interaction - Discord ChatInputCommandInteraction object.
+ * @returns {Promise<void>}
+ */
 export async function execute(interaction) {
     const sub = interaction.options.getSubcommand();
 
