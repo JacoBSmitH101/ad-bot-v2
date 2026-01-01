@@ -1,5 +1,16 @@
-import { SlashCommandBuilder, PermissionFlagsBits } from "discord.js";
+import {
+    SlashCommandBuilder,
+    PermissionFlagsBits,
+    MessageFlags,
+} from "discord.js";
 import { DomainError } from "../../utils/DomainError.js";
+
+/**
+ * Discord slash command: /fixturespublish
+ * Admin-only command to publish weekly fixtures in the current channel.
+ * Creates an embed showing scheduled matches for a specific week, which can be refreshed later.
+ * @module commands/fixturepublish
+ */
 
 export const data = new SlashCommandBuilder()
     .setName("fixturespublish")
@@ -14,6 +25,13 @@ export const data = new SlashCommandBuilder()
             .setRequired(false)
     );
 
+/**
+ * Execute the /fixturespublish command.
+ * Validates admin permissions, publishes fixtures embed, and stores channel/message references.
+ * @param {Object} interaction - Discord ChatInputCommandInteraction object.
+ * @returns {Promise<void>}
+ * @throws {DomainError} If no season, invalid state, bad channel, or invalid week.
+ */
 export async function execute(interaction) {
     const cfg = interaction.client.services.config;
     const isAdmin =
@@ -24,12 +42,12 @@ export async function execute(interaction) {
     if (!isAdmin) {
         await interaction.reply({
             content: "❌ You don’t have permission.",
-            ephemeral: true,
+            flags: MessageFlags.Ephemeral,
         });
         return;
     }
 
-    await interaction.deferReply({ ephemeral: true });
+    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
     try {
         const week = interaction.options.getInteger("week");

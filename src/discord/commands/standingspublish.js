@@ -1,6 +1,12 @@
-// src/discord/commands/standingspublish.js
-import { SlashCommandBuilder } from "discord.js";
+import { SlashCommandBuilder, MessageFlags } from "discord.js";
 import { DomainError } from "../../utils/DomainError.js";
+
+/**
+ * Discord slash command: /standingspublish
+ * Admin-only command to publish division standings in the current channel.
+ * Creates one message per division that can be automatically refreshed when results change.
+ * @module commands/standingspublish
+ */
 
 export const data = new SlashCommandBuilder()
     .setName("standingspublish")
@@ -8,6 +14,13 @@ export const data = new SlashCommandBuilder()
         "[ADMIN] Publish standings to this channel and keep them updated"
     );
 
+/**
+ * Execute the /standingspublish command.
+ * Validates admin permissions and publishes standings embeds for all divisions.
+ * @param {Object} interaction - Discord ChatInputCommandInteraction object.
+ * @returns {Promise<void>}
+ * @throws {DomainError} If no season, invalid state, or bad channel.
+ */
 export async function execute(interaction) {
     const cfg = interaction.client.services.config;
     const isAdmin =
@@ -18,12 +31,12 @@ export async function execute(interaction) {
     if (!isAdmin) {
         await interaction.reply({
             content: "❌ You don’t have permission to do that.",
-            ephemeral: true,
+            flags: MessageFlags.Ephemeral,
         });
         return;
     }
 
-    await interaction.deferReply({ ephemeral: true });
+    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
     try {
         const { season } =

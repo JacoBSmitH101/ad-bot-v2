@@ -1,11 +1,24 @@
-// src/discord/commands/mymatches.js
-import { SlashCommandBuilder, EmbedBuilder } from "discord.js";
+import { SlashCommandBuilder, EmbedBuilder, MessageFlags } from "discord.js";
 import { DomainError } from "../../utils/DomainError.js";
+
+/**
+ * Discord slash command: /mymatches
+ * Displays all matches for the current user in the current season, grouped by week.
+ * Shows match status (scheduled, reported, confirmed) and opponent information.
+ * @module commands/mymatches
+ */
 
 export const data = new SlashCommandBuilder()
     .setName("mymatches")
     .setDescription("Show your matches for the current season");
 
+/**
+ * Execute the /mymatches command.
+ * Fetches and displays the user's matches grouped by week with status indicators.
+ * @param {Object} interaction - Discord ChatInputCommandInteraction object.
+ * @returns {Promise<void>}
+ * @throws {DomainError} If no season or invalid season state.
+ */
 export async function execute(interaction) {
     try {
         const { season, weeks, next } =
@@ -37,19 +50,19 @@ export async function execute(interaction) {
             }
         }
 
-        await interaction.reply({ embeds: [embed], ephemeral: true });
+        await interaction.reply({ embeds: [embed], flags: MessageFlags.Ephemeral });
     } catch (err) {
         if (err instanceof DomainError) {
             await interaction.reply({
                 content: `❌ ${err.message}`,
-                ephemeral: true,
+                flags: MessageFlags.Ephemeral,
             });
             return;
         }
         console.error(err);
         await interaction.reply({
             content: "❌ Something went wrong.",
-            ephemeral: true,
+            flags: MessageFlags.Ephemeral,
         });
     }
 }

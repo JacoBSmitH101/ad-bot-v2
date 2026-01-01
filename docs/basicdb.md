@@ -1,45 +1,71 @@
-# 4. Database Design (v2 MVP)
+# Database (current schema – Supabase)
 
 ## Core Tables
 
-seasons:
+`seasons`
 
 -   id
 -   guild_id
 -   name
--   status
+-   status (`draft` | `signups_open` | `signups_closed` | `active` | `closed`)
 -   signups_close_at
 -   signups_channel_id
--   weekly_channel_id
+-   signups_message_id
+-   standings_channel_id
+-   standings_message_ids (json map `division:{id}` → message id)
+-   fixtures_channel_id
+-   fixtures_message_id
+-   fixtures_week
+-   started_at
+-   current_week
 -   created_at
 -   updated_at
 
-signups:
+`players`
 
--   season_id
--   discord_user_id
+-   discord_user_id (PK)
+-   display_name
+-   created_at
+-   updated_at
+
+`signups`
+
+-   season_id (FK seasons.id)
+-   discord_user_id (FK players.discord_user_id)
 -   avg_3dart
 -   created_at
 -   updated_at
 
-divisions:
+`divisions`
 
 -   id
 -   season_id
--   name
+-   name (`Div 1`, `Div 2`, …)
 -   sort_order
 -   channel_id
 -   created_at
 -   updated_at
 
-division_players:
+`division_players`
 
 -   division_id
 -   discord_user_id
 -   seed_avg
--   joined_at
+-   seed_rank
+-   created_at
+-   updated_at
 
-matches:
+`schedule_proposals`
+
+-   id
+-   season_id
+-   created_by
+-   payload (json: divisions + weeks)
+-   status (`proposed` | `approved`)
+-   created_at
+-   updated_at
+
+`matches`
 
 -   id
 -   season_id
@@ -47,18 +73,23 @@ matches:
 -   week
 -   player_a_id
 -   player_b_id
--   status
+-   status (`scheduled` | `reported` | `confirmed` | `disputed` | `void`)
+-   reported_by
 -   reported_at
+-   confirmed_by
 -   confirmed_at
 -   disputed_at
+-   result_channel_id
+-   result_message_id
 -   created_at
 -   updated_at
 
-match_results:
+`match_results`
 
 -   match_id
 -   legs_a
 -   legs_b
+-   proof_url
 -   created_at
 -   updated_at
 
@@ -68,14 +99,15 @@ match_results:
 
 Stored:
 
--   scorelines
--   statuses
--   timestamps
+-   scorelines (`match_results`)
+-   match state (`matches.status` + audit columns)
+-   publish targets (channel/message ids)
+-   timestamps / scheduling proposals
 
 Derived:
 
--   standings
--   stats
--   form
+-   standings (from confirmed matches + division membership)
+-   fixture/standing embeds
+-   stats pulled from Autodarts links
 
 ---

@@ -26,9 +26,8 @@ export async function handleResultButtons(interaction) {
             interaction.member?.roles?.cache?.has(cfg.adminRoleId));
 
     if (!isAdmin) {
-        console.log(cfg);
         await interaction.reply({
-            content: "❌ You don’t have permission to do that.",
+            content: "❌ You don't have permission to do that.",
             flags: MessageFlags.Ephemeral,
         });
         return true;
@@ -64,6 +63,29 @@ export async function handleResultButtons(interaction) {
                 await interaction.client.repos.matchResults.getByMatchId(
                     matchId
                 ); // add if you don’t have it
+            let statsLines = null;
+            let statsQueued = false;
+
+            if (resultRow?.proof_url) {
+                try {
+                    const s =
+                        await interaction.client.services.matchStats.fetchKeyStatsForProofUrl(
+                            resultRow.proof_url,
+                            { legsA: resultRow.legs_a, legsB: resultRow.legs_b }
+                        );
+
+                    statsLines = s.queued
+                        ? null
+                        : interaction.client.services.matchStats.formatKeyStatsLines(
+                              s.keyStats
+                          );
+                    statsQueued = s.queued;
+                } catch (e) {
+                    // don't break confirm if stats fails
+                    statsQueued = true;
+                    console.error("Stats fetch/parse failed:", e);
+                }
+            }
 
             // standings AFTER (division)
             const after =
@@ -95,6 +117,8 @@ export async function handleResultButtons(interaction) {
                 match,
                 status: "confirmed",
                 actorName: interaction.user.username,
+                statsLines,
+                statsQueued,
             });
 
             await interaction.editReply("✅ Result confirmed.");
@@ -171,7 +195,14 @@ function statusToEmbedPatch(status, actorName) {
     };
 }
 
-async function updatePlayerResultEmbed({ client, match, status, actorName }) {
+async function updatePlayerResultEmbed({
+    client,
+    match,
+    status,
+    actorName,
+    statsLines = null,
+    statsQueued = false,
+}) {
     if (!match.result_channel_id || !match.result_message_id) return;
 
     const channel = await client.channels
@@ -193,6 +224,19 @@ async function updatePlayerResultEmbed({ client, match, status, actorName }) {
         .setColor(patch.color)
         .setTitle(patch.title)
         .setFooter({ text: patch.footer });
+    if (statsQueued) {
+        updated.addFields({
+            name: "📈 Stats",
+            value: "_Stats temporarily unavailable (queued for retry)._",
+            inline: false,
+        });
+    } else if (Array.isArray(statsLines) && statsLines.length > 0) {
+        updated.addFields({
+            name: "📈 Stats",
+            value: statsLines.join("\n"),
+            inline: false,
+        });
+    }
 
     await message.edit({ embeds: [updated] });
 }

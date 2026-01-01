@@ -1,69 +1,68 @@
-# 3. League Specification (Discord-only MVP)
+# League Specification (as implemented)
 
 ## Season Lifecycle
 
-draft → signups_open → signups_closed → active → closed
+`draft` → `signups_open` → `signups_closed` → `active` → `closed`
 
-Rules:
-
--   signups only in signups_open
--   scheduling only in signups_closed
--   results only count in active
+-   Opening signups optionally sets `signups_close_at`.
+-   `startSeason` requires an approved schedule (matches exist) and moves to `active`, setting `started_at/current_week`.
 
 ---
 
 ## Signups
 
-/signup avg:54.3
+`/signup avg:54.3`
 
-Rules:
-
--   one signup per player per season
--   avg updatable while open
--   validated numeric range
-
-Auto-close via signups_close_at.
+-   One row per player per season (upsert allowed while open).
+-   Average is rounded to 1 decimal, must be 10.0–120.0.
+-   `/dropout` only works while `signups_open`.
+-   If `signups_close_at` is in the past, signup attempts are blocked (status is not auto-flipped).
+-   `/signups` publishes an embed to a configured channel and auto-refreshes on change.
 
 ---
 
 ## Divisions
 
-/divisions create count:3
+`/divisions create count:3`
 
-Auto assignment by snake draft using averages.
+-   Allowed only once signups are closed.
+-   Minimum 7 players per division; at most 10 divisions.
+-   Auto assignment sorts by average high → low and chunks evenly (not snake draft).
 
 ---
 
 ## Scheduling
 
--   Round robin per division
--   Proposed then approved
--   Written to matches
+-   `/schedule propose` builds a round-robin per division and stores a JSON proposal.
+-   `/schedule approve` wipes existing matches, inserts new `scheduled` matches, and is required before the season can start.
+-   `/schedule preview` inspects a specific division/week from the latest proposal.
 
 ---
 
-## Weekly Matches
+## Weekly Fixtures
 
-Posted to weekly channel:
-Div 1 – Week 3
-@A vs @B
-
-Players arrange matches in division channels.
+-   `/fixtures publish [week]` posts the week embed and stores channel/message/target week.
+-   `/fixtures setweek` updates the stored week and re-renders.
+-   Shows status icons: 🗓️ scheduled, 🟠 reported, 🟢 confirmed.
 
 ---
 
 ## Results
 
-/result @A 4-2 @B
+`/result @A 4-2 @B url:<autodarts link>`
 
--   order-insensitive
--   opponent/admin confirms
--   only confirmed results count
+-   Autodarts match URL is required.
+-   Finds the best matching scheduled/reported/disputed match between the two players.
+-   Marks the match as `reported`, stores score + proof URL, and sends an admin review message with buttons.
+-   Admins (via configured user/role) confirm/reject via buttons; confirm sets `confirmed` and refreshes standings/fixtures.
+-   `void`/`reset` admin commands clear results or status when needed.
 
 ---
 
 ## Standings
 
-Derived from confirmed matches.
+-   Computed from confirmed matches per division.
+-   `/standings publish` posts one message per division; `/standings refresh` auto-runs after confirmations.
+-   Movement lines included when a confirmation supplies before/after context.
 
 ---

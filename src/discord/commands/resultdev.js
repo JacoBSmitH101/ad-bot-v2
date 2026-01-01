@@ -1,4 +1,3 @@
-// src/discord/commands/resultdev.js
 import {
     SlashCommandBuilder,
     EmbedBuilder,
@@ -6,6 +5,13 @@ import {
     PermissionFlagsBits,
 } from "discord.js";
 import { DomainError } from "../../utils/DomainError.js";
+
+/**
+ * Discord slash command: /resultdev
+ * Development-only command to submit a result against a fake player ID.
+ * Only available in non-production environments. Used for testing with fake players.
+ * @module commands/resultdev
+ */
 
 export const data = new SlashCommandBuilder()
     .setName("resultdev")
@@ -29,6 +35,13 @@ export const data = new SlashCommandBuilder()
         opt.setName("url").setDescription("Proof URL").setRequired(true)
     )
     .setDefaultMemberPermissions(PermissionFlagsBits.Administrator);
+
+/**
+ * Validate that URL is a valid Autodarts match link.
+ * @private
+ * @param {string} url
+ * @returns {boolean}
+ */
 function validateAutodartsMatchUrl(url) {
     const regex =
         /^https:\/\/play\.autodarts\.io\/history\/matches\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -36,6 +49,13 @@ function validateAutodartsMatchUrl(url) {
     return regex.test(url);
 }
 
+/**
+ * Execute the /resultdev command.
+ * Validates environment, Autodarts URL, submits result against fake player, and sends verification.
+ * @param {Object} interaction - Discord ChatInputCommandInteraction object.
+ * @returns {Promise<void>}
+ * @throws {DomainError} If in production, URL invalid, or submission fails.
+ */
 export async function execute(interaction) {
     const opponentId = interaction.options
         .getString("opponent_id", true)
@@ -44,7 +64,6 @@ export async function execute(interaction) {
     const them = interaction.options.getInteger("them", true);
     const url = interaction.options.getString("url", true);
 
-    // hard dev guard
     if (process.env.NODE_ENV === "production") {
         await interaction.reply({
             content: "❌ Not available in production.",
@@ -52,16 +71,17 @@ export async function execute(interaction) {
         });
         return;
     }
+
     if (!validateAutodartsMatchUrl(url)) {
-        interaction.reply({
+        await interaction.reply({
             content: "❌ Match URL must be a valid Autodarts match link.",
             flags: MessageFlags.Ephemeral,
         });
-        throw new DomainError(
-            "INVALID_PROOF_URL",
-            "Match URL must be a valid Autodarts match link."
-        );
+        return;
     }
+
+    await interaction.deferReply({ flags: 0 }); // public reply (not ephemeral)
+
     try {
         const { season, match, result } =
             await interaction.client.services.results.submit({
@@ -102,13 +122,19 @@ export async function execute(interaction) {
             )
             .setTimestamp();
 
-        await interaction.reply({ embeds: [embed], flags: 0 });
+        await interaction.editReply({ embeds: [embed] });
+
         const msg = await interaction.fetchReply();
+
+        if (!match?.id) throw new DomainError("BAD_MATCH", "Match ID missing.");
+        if (!msg?.id) throw new DomainError("BAD_MSG", "Message ID missing.");
+
         await interaction.client.repos.matches.setResultMessage({
             matchId: match.id,
             channelId: interaction.channelId,
             messageId: msg.id,
         });
+
         await interaction.client.services.resultsNotifier.sendVerification({
             client: interaction.client,
             guildId: interaction.guildId,
@@ -117,16 +143,16 @@ export async function execute(interaction) {
         });
     } catch (err) {
         if (err instanceof DomainError) {
-            await interaction.reply({
+            await interaction.editReply({
                 content: `❌ ${err.message}`,
-                flags: MessageFlags.Ephemeral,
+                embeds: [],
             });
             return;
         }
         console.error(err);
-        await interaction.reply({
+        await interaction.editReply({
             content: "❌ Something went wrong.",
-            flags: MessageFlags.Ephemeral,
+            embeds: [],
         });
     }
 }

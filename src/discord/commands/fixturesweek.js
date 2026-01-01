@@ -1,5 +1,16 @@
-import { SlashCommandBuilder, PermissionFlagsBits } from "discord.js";
+import {
+    SlashCommandBuilder,
+    PermissionFlagsBits,
+    MessageFlags,
+} from "discord.js";
 import { DomainError } from "../../utils/DomainError.js";
+
+/**
+ * Discord slash command: /fixturesweek
+ * Admin-only command to change which week the published fixtures message displays.
+ * Updates the season's fixtures_week field and refreshes the message.
+ * @module commands/fixturesweek
+ */
 
 export const data = new SlashCommandBuilder()
     .setName("fixturesweek")
@@ -9,6 +20,13 @@ export const data = new SlashCommandBuilder()
         opt.setName("week").setDescription("Week number").setRequired(true)
     );
 
+/**
+ * Execute the /fixturesweek command.
+ * Validates admin permissions and updates the displayed week for fixtures.
+ * @param {Object} interaction - Discord ChatInputCommandInteraction object.
+ * @returns {Promise<void>}
+ * @throws {DomainError} If no season, invalid state, or invalid week.
+ */
 export async function execute(interaction) {
     const cfg = interaction.client.services.config;
     const isAdmin =
@@ -19,12 +37,12 @@ export async function execute(interaction) {
     if (!isAdmin) {
         await interaction.reply({
             content: "❌ You don’t have permission.",
-            ephemeral: true,
+            flags: MessageFlags.Ephemeral,
         });
         return;
     }
 
-    await interaction.deferReply({ ephemeral: true });
+    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
     try {
         const week = interaction.options.getInteger("week", true);

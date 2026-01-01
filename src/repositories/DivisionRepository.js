@@ -1,8 +1,44 @@
+/**
+ * @typedef {Object} Division
+ * @property {number} id
+ * @property {string|number} season_id
+ * @property {string} name
+ * @property {number} sort_order
+ * @property {string|null} channel_id
+ * @property {string} created_at
+ * @property {string} updated_at
+ */
+
+/**
+ * @typedef {Object} DivisionPlayer
+ * @property {number} division_id
+ * @property {string} discord_user_id
+ * @property {number|null} seed_avg
+ * @property {number|null} seed_rank
+ * @property {string} created_at
+ * @property {string} updated_at
+ */
+
+/**
+ * Repository for managing divisions and division players within a season.
+ * Expects a Supabase client already configured with auth; all methods throw
+ * on database errors.
+ */
 export class DivisionRepository {
+    /**
+     * @param {{ supabase: object, schema: string }} deps
+     * @param {object} deps.supabase Supabase client instance.
+     * @param {string} deps.schema Postgres schema name to scope all queries.
+     */
     constructor({ supabase, schema }) {
         this.supabase = supabase.schema(schema);
     }
 
+    /**
+     * Create a set of sequential divisions for a season.
+     * @param {{ seasonId: string|number, count: number }} params
+     * @returns {Promise<Array.<Division>>}
+     */
     async createMany({ seasonId, count }) {
         const rows = Array.from({ length: count }, (_, i) => ({
             season_id: seasonId,
@@ -20,6 +56,11 @@ export class DivisionRepository {
         return data;
     }
 
+    /**
+     * List divisions for a season ordered by sort_order.
+     * @param {string|number} seasonId
+     * @returns {Promise<Array.<Division>>}
+     */
     async listBySeason(seasonId) {
         const { data, error } = await this.supabase
             .from("divisions")
@@ -31,8 +72,13 @@ export class DivisionRepository {
         return data;
     }
 
+    /**
+     * Remove all division player memberships for every division in the season.
+     * No-op if the season has no divisions.
+     * @param {string|number} seasonId
+     * @returns {Promise<void>}
+     */
     async clearPlayersForSeason(seasonId) {
-        // delete membership for all divisions in this season
         const { data: divs, error: divErr } = await this.supabase
             .from("divisions")
             .select("id")
@@ -51,8 +97,12 @@ export class DivisionRepository {
         if (error) throw error;
     }
 
+    /**
+     * Add players to divisions in bulk.
+     * @param {Array.<{division_id: number, discord_user_id: string, seed_avg: (number|null), seed_rank: (number|null)}>} rows
+     * @returns {Promise<Array.<DivisionPlayer>>}
+     */
     async addPlayersBulk(rows) {
-        // rows: [{division_id, discord_user_id, seed_avg, seed_rank}]
         const { data, error } = await this.supabase
             .from("division_players")
             .insert(rows)
@@ -61,6 +111,12 @@ export class DivisionRepository {
         if (error) throw error;
         return data;
     }
+
+    /**
+     * List players for a division ordered by seed_avg descending.
+     * @param {number} divisionId
+     * @returns {Promise<Array.<{discord_user_id: string, seed_avg: (number|null), seed_rank: (number|null)}>>}
+     */
     async listDivisionPlayers(divisionId) {
         const { data, error } = await this.supabase
             .from("division_players")
@@ -72,6 +128,11 @@ export class DivisionRepository {
         return data;
     }
 
+    /**
+     * List divisions with their players for a season.
+     * @param {string|number} seasonId
+     * @returns {Promise<Array.<{ division: {id: number, name: string, sort_order: number}, players: Array.<{discord_user_id: string, seed_avg: (number|null), seed_rank: (number|null)}> }>>}
+     */
     async listAllDivisionPlayersForSeason(seasonId) {
         const { data: divs, error: divErr } = await this.supabase
             .from("divisions")
@@ -88,6 +149,12 @@ export class DivisionRepository {
         }
         return result;
     }
+    /**
+     * Set the Discord channel for a division.
+     * @param {number} divisionId
+     * @param {string} channelId
+     * @returns {Promise<Division>}
+     */
     async setChannel(divisionId, channelId) {
         const { data, error } = await this.supabase
             .from("divisions")
@@ -99,6 +166,12 @@ export class DivisionRepository {
         if (error) throw error;
         return data;
     }
+    /**
+     * Fetch a division by season and name.
+     * @param {string|number} seasonId
+     * @param {string} name
+     * @returns {Promise<(Division|null)>}
+     */
     async getBySeasonAndName(seasonId, name) {
         const { data, error } = await this.supabase
             .from("divisions")
@@ -110,6 +183,12 @@ export class DivisionRepository {
         if (error) throw error;
         return data ?? null;
     }
+
+    /**
+     * List divisions for a season ordered by sort_order.
+     * @param {string|number} seasonId
+     * @returns {Promise<Array.<Division>>}
+     */
     async listForSeason(seasonId) {
         const { data, error } = await this.supabase
             .from("divisions")

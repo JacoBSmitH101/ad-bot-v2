@@ -12,7 +12,8 @@ const EnvSchema = z.object({
     SUPABASE_DB_SCHEMA: z.string().optional(),
     RESULTS_REVIEW_CHANNEL: z.string().optional(),
     ADMIN_USER_ID: z.string().optional(),
-
+    INTERNAL_API_KEY: z.string().min(1),
+    INTERNAL_API_BASE_URL: z.string().min(1),
     // optional for later
     ADMIN_ROLE_ID: z.string().optional(),
     ADMIN_USER_IDS: z.string().optional(), // comma-separated
@@ -27,4 +28,3 @@ export const adminUserIds = new Set(
         .map((s) => s.trim())
         .filter(Boolean)
 );
-//testing CICD azure devops pipelines

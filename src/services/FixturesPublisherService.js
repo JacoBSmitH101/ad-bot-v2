@@ -1,6 +1,12 @@
 import { EmbedBuilder } from "discord.js";
 import { DomainError } from "../utils/DomainError.js";
 
+/**
+ * Formats a player ID for display.
+ * @private
+ * @param {string} id
+ * @returns {string}
+ */
 function fmtPlayer(id) {
     return id.startsWith("FAKE_") ? `\`${id}\`` : `<@${id}>`;
 }
@@ -22,9 +28,16 @@ function normalizeMatchResult(match) {
     };
 }
 
+/**
+ * Service for publishing and refreshing fixture messages in Discord.
+ * Manages Discord embed creation and message updates for weekly fixtures.
+ */
 export class FixturesPublisherService {
     /**
-     * @param {{ seasons:any, matches:any, divisions:any }} deps
+     * @param {{ seasons: SeasonRepository, matches: MatchRepository, divisions: DivisionRepository }} deps
+     * @param {SeasonRepository} deps.seasons Season repository instance.
+     * @param {MatchRepository} deps.matches Match repository instance.
+     * @param {DivisionRepository} deps.divisions Division repository instance.
      */
     constructor({ seasons, matches, divisions }) {
         this.seasons = seasons;
@@ -32,6 +45,13 @@ export class FixturesPublisherService {
         this.divisions = divisions;
     }
 
+    /**
+     * Publish fixtures for a week to a Discord channel.
+     * Creates a message and stores channel/message/week references.
+     * @param {{ client: Client, guildId: string, channelId: string, week: (number|null) }} params
+     * @returns {Promise<{season: Season, channelId: string, messageId: string, week: number}>}
+     * @throws {DomainError} If no season, invalid state, bad channel, or invalid week.
+     */
     async publish({ client, guildId, channelId, week = null }) {
         const season = await this.seasons.getCurrentForGuild(guildId);
         if (!season) throw new DomainError("NO_SEASON", "No season found.");
@@ -75,6 +95,12 @@ export class FixturesPublisherService {
         return { season, channelId, messageId: msg.id, week: targetWeek };
     }
 
+    /**
+     * Update the fixtures week and refresh the message.
+     * @param {{ client: Client, guildId: string, week: number }} params
+     * @returns {Promise<{seasonId: string, week: number}>}
+     * @throws {DomainError} If no season or invalid week.
+     */
     async setWeek({ client, guildId, week }) {
         const season = await this.seasons.getCurrentForGuild(guildId);
         if (!season) throw new DomainError("NO_SEASON", "No season found.");
@@ -92,6 +118,12 @@ export class FixturesPublisherService {
         return { seasonId: season.id, week: targetWeek };
     }
 
+    /**
+     * Refresh the published fixtures message with current data.
+     * @param {{ client: Client, guildId: string }} params
+     * @returns {Promise<{updated: boolean, skipped: boolean}>}
+     * @throws {DomainError} If no season.
+     */
     async refresh({ client, guildId }) {
         const season = await this.seasons.getCurrentForGuild(guildId);
         if (!season) throw new DomainError("NO_SEASON", "No season found.");

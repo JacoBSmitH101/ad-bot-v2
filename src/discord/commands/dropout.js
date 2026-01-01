@@ -1,4 +1,11 @@
-import { SlashCommandBuilder, EmbedBuilder } from "discord.js";
+import { SlashCommandBuilder, EmbedBuilder, MessageFlags } from "discord.js";
+
+/**
+ * Discord slash command: /dropout
+ * Allows players to unregister from the current season.
+ * Only works when signups are open. Refreshes the published signup list automatically.
+ * @module commands/dropout
+ */
 
 export const data = new SlashCommandBuilder()
     .setName("dropout")
@@ -6,7 +13,29 @@ export const data = new SlashCommandBuilder()
         "Unregister from the current season (signups must be open)"
     );
 
+/**
+ * Execute the /dropout command.
+ * Validates channel restrictions, removes the player's signup, and refreshes published signups.
+ * @param {Object} interaction - Discord ChatInputCommandInteraction object.
+ * @returns {Promise<void>}
+ */
 export async function execute(interaction) {
+    const seasonConfig =
+        await interaction.client.repos.seasons.getCurrentForGuild(
+            interaction.guildId
+        );
+
+    if (
+        seasonConfig?.signups_channel_id &&
+        interaction.channelId !== seasonConfig.signups_channel_id
+    ) {
+        await interaction.reply({
+            content: `❌ Please use this command in <#${seasonConfig.signups_channel_id}>.`,
+            flags: MessageFlags.Ephemeral,
+        });
+        return;
+    }
+
     const { season, previousAvg } =
         await interaction.client.services.signups.dropout({
             guildId: interaction.guildId,
@@ -19,6 +48,8 @@ export async function execute(interaction) {
         .setTitle("🗑️ Signup Removed")
         .setDescription(`You have been removed from **${season.name}**`)
         .setThumbnail(avatarUrl)
+        //purple
+        .setColor(0x800080)
         .addFields(
             {
                 name: "Player",
@@ -34,4 +65,11 @@ export async function execute(interaction) {
         .setTimestamp();
 
     await interaction.reply({ embeds: [embed] });
+
+    // keep the published signup list in sync
+    await interaction.client.services.signupsPublisher
+        .refresh({ client: interaction.client, guildId: interaction.guildId })
+        .catch((err) =>
+            console.error("Failed to refresh published signups:", err)
+        );
 }

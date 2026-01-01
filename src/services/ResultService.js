@@ -1,9 +1,16 @@
-// src/services/ResultService.js
 import { DomainError } from "../utils/DomainError.js";
 
+/**
+ * Service for submitting, confirming, and managing match results.
+ * Handles result validation, match state transitions, and admin operations.
+ */
 export class ResultService {
     /**
-     * @param {{ seasons: any, matches: any, matchResults: any, players: any }} deps
+     * @param {{ seasons: SeasonRepository, matches: MatchRepository, matchResults: MatchResultRepository, players: PlayersRepository }} deps
+     * @param {SeasonRepository} deps.seasons Season repository instance.
+     * @param {MatchRepository} deps.matches Match repository instance.
+     * @param {MatchResultRepository} deps.matchResults Match result repository instance.
+     * @param {PlayersRepository} deps.players Player repository instance.
      */
     constructor({ seasons, matches, matchResults, players }) {
         this.seasons = seasons;
@@ -12,6 +19,13 @@ export class ResultService {
         this.players = players;
     }
 
+    /**
+     * Submit a match result for verification.
+     * Finds the best matching open match and marks it as reported.
+     * @param {{ guildId: string, discordUserId: string, displayName: (string|null), opponentDiscordUserId: string, legsYou: number, legsThem: number, proofUrl: string }} params
+     * @returns {Promise<{season: Season, match: Match, result: MatchResult}>}
+     * @throws {DomainError} If no season, season not active, invalid opponent, invalid score, no match found, or already reported by other player.
+     */
     async submit({
         guildId,
         discordUserId,
@@ -106,9 +120,39 @@ export class ResultService {
             disputed_at: null,
         });
 
+        // #region agent log
+        fetch(
+            "http://127.0.0.1:7242/ingest/dd387cc0-3ef6-4629-9ef1-f5bce1d079ff",
+            {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    sessionId: "debug-session",
+                    runId: "post-fix",
+                    hypothesisId: "H1",
+                    location: "ResultService.submit",
+                    message: "submit returning payload",
+                    data: {
+                        matchIsArray: Array.isArray(updatedMatch),
+                        matchType: typeof updatedMatch,
+                        matchId: updatedMatch?.id ?? null,
+                    },
+                    timestamp: Date.now(),
+                }),
+            }
+        ).catch(() => {});
+        // #endregion
+
         return { season, match: updatedMatch, result };
     }
 
+    /**
+     * Confirm a reported match result (admin action).
+     * Moves match from reported to confirmed status.
+     * @param {{ guildId: string, adminDiscordUserId: string, adminDisplayName: string, matchId: string|number }} params
+     * @returns {Promise<{season: Season, match: Match, result: MatchResult}>}
+     * @throws {DomainError} If no season, season not active, match not found, wrong season, or match not reported.
+     */
     async confirm({ guildId, adminDiscordUserId, adminDisplayName, matchId }) {
         const season = await this.seasons.getCurrentForGuild(guildId);
         if (!season) throw new DomainError("NO_SEASON", "No season found.");
@@ -154,6 +198,13 @@ export class ResultService {
         return { season, match: updatedMatch, result };
     }
 
+    /**
+     * Reject a reported match result (admin action).
+     * Deletes the result and resets match to scheduled status.
+     * @param {{ guildId: string, adminDiscordUserId: string, adminDisplayName: string, matchId: string|number }} params
+     * @returns {Promise<{season: Season, match: Match}>}
+     * @throws {DomainError} If no season, season not active, match not found, wrong season, or match not reported.
+     */
     async reject({ guildId, adminDiscordUserId, adminDisplayName, matchId }) {
         const season = await this.seasons.getCurrentForGuild(guildId);
         if (!season) throw new DomainError("NO_SEASON", "No season found.");
@@ -197,6 +248,14 @@ export class ResultService {
         return { season, match: updatedMatch };
     }
 
+    /**
+     * Pick the best candidate match from multiple options.
+     * Prioritizes scheduled > reported (by same reporter) > disputed.
+     * @private
+     * @param {Array.<Match>} candidates
+     * @param {string} reporterId
+     * @returns {Match}
+     */
     #pickBestCandidate(candidates, reporterId) {
         const priority = (m) => {
             if (m.status === "scheduled") return 0;
@@ -217,6 +276,13 @@ export class ResultService {
         })[0];
     }
 
+    /**
+     * Validate match score format and values.
+     * @private
+     * @param {number} legsYou
+     * @param {number} legsThem
+     * @throws {DomainError} If score is invalid (non-integer, negative, draw, or too high).
+     */
     #validateScore(legsYou, legsThem) {
         const a = Number(legsYou);
         const b = Number(legsThem);
@@ -237,5 +303,165 @@ export class ResultService {
             throw new DomainError("INVALID_SCORE", "Legs look too high.");
         }
         // optional: require someone hits 3/4/5 etc depending on format later
+    }
+
+    /**
+     * Edit a match result (admin action).
+     * Can edit results for reported/confirmed/disputed matches.
+     * @param {{ guildId: string, adminDiscordUserId: string, adminDisplayName: string, matchId: string|number, legsA: number, legsB: number, proofUrl: (string|null) }} params
+     * @returns {Promise<{season: Season, match: Match, result: MatchResult}>}
+     * @throws {DomainError} If no season, match wrong season, invalid state, or invalid score.
+     */
+    async adminEditResult({
+        guildId,
+        adminDiscordUserId,
+        adminDisplayName,
+        matchId,
+        legsA,
+        legsB,
+        proofUrl = null,
+    }) {
+        const season = await this.seasons.getCurrentForGuild(guildId);
+        if (!season) throw new DomainError("NO_SEASON", "No season found.");
+        const match = await this.matches.getById(matchId);
+
+        if (match.season_id !== season.id) {
+            throw new DomainError(
+                "WRONG_SEASON",
+                "That match is not in the current season."
+            );
+        }
+
+        if (!["reported", "confirmed", "disputed"].includes(match.status)) {
+            throw new DomainError(
+                "INVALID_STATE",
+                `Can only edit results for reported/confirmed/disputed matches (current: ${match.status})`
+            );
+        }
+
+        // reuse your existing validation rules
+        this.#validateScore(legsA, legsB);
+
+        // FK safety if you ever use confirmed_by / audit later
+        await this.players.upsert({
+            discordUserId: adminDiscordUserId,
+            displayName: adminDisplayName,
+        });
+
+        const updatedResult = await this.matchResults.upsert({
+            matchId: match.id,
+            legsA,
+            legsB,
+            proofUrl,
+        });
+
+        // no need to update matches table unless you're changing status/timestamps/etc
+        return { season, match, result: updatedResult };
+    }
+
+    /**
+     * Reset a match to scheduled status (admin action).
+     * Deletes the result and optionally clears result message references.
+     * @param {{ guildId: string, adminDiscordUserId: string, adminDisplayName: string, matchId: string|number, clearResultMessage: boolean }} params
+     * @returns {Promise<{season: Season, match: Match}>}
+     * @throws {DomainError} If no season or match wrong season.
+     */
+    async adminResetMatch({
+        guildId,
+        adminDiscordUserId,
+        adminDisplayName,
+        matchId,
+        clearResultMessage = false,
+    }) {
+        const season = await this.seasons.getCurrentForGuild(guildId);
+        if (!season) throw new DomainError("NO_SEASON", "No season found.");
+
+        const match = await this.matches.getById(matchId);
+
+        if (match.season_id !== season.id) {
+            throw new DomainError(
+                "WRONG_SEASON",
+                "That match is not in the current season."
+            );
+        }
+
+        // delete the stored result
+        await this.matchResults.deleteByMatchId(match.id);
+
+        await this.players.upsert({
+            discordUserId: adminDiscordUserId,
+            displayName: adminDisplayName,
+        });
+
+        const patch = {
+            status: "scheduled",
+            reported_by: null,
+            reported_at: null,
+            confirmed_by: null,
+            confirmed_at: null,
+            disputed_at: null,
+        };
+
+        if (clearResultMessage) {
+            patch.result_channel_id = null;
+            patch.result_message_id = null;
+        }
+
+        const updatedMatch = await this.matches.update(match.id, patch);
+
+        return { season, match: updatedMatch };
+    }
+
+    /**
+     * Void a match (admin action).
+     * Deletes the result and sets match status to void (no points awarded).
+     * @param {{ guildId: string, adminDiscordUserId: string, adminDisplayName: string, matchId: string|number, clearResultMessage: boolean }} params
+     * @returns {Promise<{season: Season, match: Match}>}
+     * @throws {DomainError} If no season or match wrong season.
+     */
+    async adminVoidMatch({
+        guildId,
+        adminDiscordUserId,
+        adminDisplayName,
+        matchId,
+        clearResultMessage = false,
+    }) {
+        const season = await this.seasons.getCurrentForGuild(guildId);
+        if (!season) throw new DomainError("NO_SEASON", "No season found.");
+
+        const match = await this.matches.getById(matchId);
+
+        if (match.season_id !== season.id) {
+            throw new DomainError(
+                "WRONG_SEASON",
+                "That match is not in the current season."
+            );
+        }
+
+        // void means no points from it → easiest is to delete match_results
+        await this.matchResults.deleteByMatchId(match.id);
+
+        await this.players.upsert({
+            discordUserId: adminDiscordUserId,
+            displayName: adminDisplayName,
+        });
+
+        const patch = {
+            status: "void",
+            reported_by: null,
+            reported_at: null,
+            confirmed_by: null,
+            confirmed_at: null,
+            disputed_at: null,
+        };
+
+        if (clearResultMessage) {
+            patch.result_channel_id = null;
+            patch.result_message_id = null;
+        }
+
+        const updatedMatch = await this.matches.update(match.id, patch);
+
+        return { season, match: updatedMatch };
     }
 }

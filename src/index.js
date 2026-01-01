@@ -32,6 +32,9 @@ import { handleStandingsButtons } from "./discord/handlers/standingsButtons.js";
 import { StandingsPublisherService } from "./services/StandingsPublisherService.js";
 import { MatchesService } from "./services/MatchesService.js";
 import { FixturesPublisherService } from "./services/FixturesPublisherService.js";
+import { InternalApiClient } from "./services/InternalApiClient.js";
+import { MatchStatsService } from "./services/MatchStatsService.js";
+import { SignupsPublisherService } from "./services/SignupsPublisherService.js";
 
 async function dbPing() {
     const { error } = await supabase.from("seasons").select("id").limit(1);
@@ -52,6 +55,11 @@ if (!token) {
 
 const client = new Client({ intents: [GatewayIntentBits.Guilds] });
 const schema = env.SUPABASE_DB_SCHEMA || "public";
+
+const internalApi = new InternalApiClient({
+    baseUrl: env.INTERNAL_API_BASE_URL,
+    internalKey: env.INTERNAL_API_KEY,
+});
 client.repos = {
     seasons: new SeasonRepository({ supabase, schema }),
     players: new PlayersRepository({ supabase, schema }),
@@ -106,19 +114,28 @@ client.services = {
     matches: new MatchesService({
         matches: client.repos.matches,
         seasons: client.repos.seasons,
+        divisions: client.repos.divisions,
     }),
     fixturesPublisher: new FixturesPublisherService({
         seasons: client.repos.seasons,
         matches: client.repos.matches,
         divisions: client.repos.divisions,
     }),
+    signupsPublisher: new SignupsPublisherService({
+        seasons: client.repos.seasons,
+        signups: client.repos.signups,
+    }),
+    matchStats: new MatchStatsService({ internalApi }),
+    internalApi: internalApi,
     config: {
         adminUserId: env.ADMIN_USER_ID ?? null,
+        adminRoleId: env.ADMIN_ROLE_ID ?? null,
     },
 };
 client.services.standingsPublisher = new StandingsPublisherService({
     standings: client.services.standings,
     seasons: client.repos.seasons,
+    matches: client.repos.matches,
 });
 
 // Load commands (execute handlers) from files
@@ -132,6 +149,8 @@ const commandFiles = fs
     .readdirSync(commandsPath)
     .filter((f) => f.endsWith(".js"));
 
+const isProduction = process.env.NODE_ENV === "production";
+
 for (const file of commandFiles) {
     const filePath = path.join(commandsPath, file);
     const mod = await import(pathToFileURL(filePath).href);
@@ -141,11 +160,29 @@ for (const file of commandFiles) {
         continue;
     }
 
+    // Skip dev-only commands in production
+    if (isProduction && mod.data.name === "resultdev") {
+        console.log(`Skipping dev command: ${mod.data.name}`);
+        continue;
+    }
+
     client.commands.set(mod.data.name, mod);
 }
 
-client.once(Events.ClientReady, () => {
+client.once(Events.ClientReady, async () => {
     console.log(`✅ Logged in as ${client.user.tag}`);
+
+    // Refresh published messages after restart so they stay in sync
+    for (const guild of client.guilds.cache.values()) {
+        await client.services.signupsPublisher
+            .refresh({ client, guildId: guild.id })
+            .catch((err) =>
+                console.error(
+                    `Failed to refresh signups for guild ${guild.id}:`,
+                    err?.message ?? err
+                )
+            );
+    }
 });
 
 client.on(Events.InteractionCreate, async (interaction) => {
