@@ -25,12 +25,20 @@ const commandFiles = fs
     .readdirSync(commandsPath)
     .filter((f) => f.endsWith(".js"));
 
+const isProduction = process.env.NODE_ENV === "production";
+
 for (const file of commandFiles) {
     const filePath = path.join(commandsPath, file);
     const mod = await import(pathToFileURL(filePath).href);
 
     if (!mod?.data?.toJSON) {
         console.warn(`Skipping ${file} (missing export: data)`);
+        continue;
+    }
+
+    // Skip dev-only commands in production
+    if (isProduction && mod.data.name === "resultdev") {
+        console.log(`Skipping dev command: ${mod.data.name}`);
         continue;
     }
 

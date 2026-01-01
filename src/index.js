@@ -129,6 +129,7 @@ client.services = {
     internalApi: internalApi,
     config: {
         adminUserId: env.ADMIN_USER_ID ?? null,
+        adminRoleId: env.ADMIN_ROLE_ID ?? null,
     },
 };
 client.services.standingsPublisher = new StandingsPublisherService({
@@ -148,12 +149,20 @@ const commandFiles = fs
     .readdirSync(commandsPath)
     .filter((f) => f.endsWith(".js"));
 
+const isProduction = process.env.NODE_ENV === "production";
+
 for (const file of commandFiles) {
     const filePath = path.join(commandsPath, file);
     const mod = await import(pathToFileURL(filePath).href);
 
     if (!mod?.data?.name || typeof mod.execute !== "function") {
         console.warn(`Skipping ${file} (needs exports: data + execute)`);
+        continue;
+    }
+
+    // Skip dev-only commands in production
+    if (isProduction && mod.data.name === "resultdev") {
+        console.log(`Skipping dev command: ${mod.data.name}`);
         continue;
     }
 
