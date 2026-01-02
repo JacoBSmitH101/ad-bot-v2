@@ -25,7 +25,16 @@ export async function execute(interaction) {
             interaction.guildId
         );
 
+    // Check if user is admin
+    const cfg = interaction.client.services.config;
+    const isAdmin =
+        (cfg.adminUserId && interaction.user.id === cfg.adminUserId) ||
+        (cfg.adminRoleId &&
+            interaction.member?.roles?.cache?.has(cfg.adminRoleId));
+
+    // Enforce channel restriction only for non-admins
     if (
+        !isAdmin &&
         seasonConfig?.signups_channel_id &&
         interaction.channelId !== seasonConfig.signups_channel_id
     ) {
@@ -41,6 +50,12 @@ export async function execute(interaction) {
             guildId: interaction.guildId,
             discordUserId: interaction.user.id,
         });
+
+    const displayName =
+        interaction.member?.displayName ?? interaction.user.username;
+    console.log(
+        `[DROPOUT] ${displayName} (${interaction.user.id}) dropped out of ${season.name} (avg: ${previousAvg})`
+    );
 
     const avatarUrl = interaction.user.displayAvatarURL({ size: 256 });
 
@@ -64,7 +79,7 @@ export async function execute(interaction) {
         )
         .setTimestamp();
 
-    await interaction.reply({ embeds: [embed] });
+    await interaction.reply({ embeds: [embed], flags: MessageFlags.Ephemeral });
 
     // keep the published signup list in sync
     await interaction.client.services.signupsPublisher
