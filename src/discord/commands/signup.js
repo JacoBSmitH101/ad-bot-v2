@@ -25,7 +25,16 @@ export async function execute(interaction) {
             interaction.guildId
         );
 
+    // Check if user is admin
+    const cfg = interaction.client.services.config;
+    const isAdmin =
+        (cfg.adminUserId && interaction.user.id === cfg.adminUserId) ||
+        (cfg.adminRoleId &&
+            interaction.member?.roles?.cache?.has(cfg.adminRoleId));
+
+    // Enforce channel restriction only for non-admins
     if (
+        !isAdmin &&
         seasonConfig?.signups_channel_id &&
         interaction.channelId !== seasonConfig.signups_channel_id
     ) {
