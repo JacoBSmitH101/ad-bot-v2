@@ -51,6 +51,12 @@ export async function execute(interaction) {
             discordUserId: interaction.user.id,
         });
 
+    const displayName =
+        interaction.member?.displayName ?? interaction.user.username;
+    console.log(
+        `[DROPOUT] ${displayName} (${interaction.user.id}) dropped out of ${season.name} (avg: ${previousAvg})`
+    );
+
     const avatarUrl = interaction.user.displayAvatarURL({ size: 256 });
 
     const embed = new EmbedBuilder()
@@ -73,7 +79,7 @@ export async function execute(interaction) {
         )
         .setTimestamp();
 
-    await interaction.reply({ embeds: [embed] });
+    await interaction.reply({ embeds: [embed], flags: MessageFlags.Ephemeral });
 
     // keep the published signup list in sync
     await interaction.client.services.signupsPublisher
