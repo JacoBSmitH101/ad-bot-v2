@@ -69,6 +69,8 @@
   - `publish` - Publish/refresh the signup list message in the current channel
     - Creates a new message that auto-updates when signups change
     - If a message already exists in a different channel, creates a new one (old one becomes orphaned)
+  - `assign-role` - Assign a role to every signed-up player (signups must be closed)
+    - `role_id` (required) - Role ID (or role mention) to assign
 
 ### Division Management
 
