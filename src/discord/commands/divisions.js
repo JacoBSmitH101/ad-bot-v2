@@ -33,6 +33,19 @@ export const data = new SlashCommandBuilder()
             .setDescription(
                 "Assign players into divisions by average (Div1 strongest)"
             )
+    )
+    .addSubcommand((s) =>
+        s
+            .setName("preview-auto")
+            .setDescription(
+                "Preview auto-assignments (no DB changes, signups can be open)"
+            )
+            .addIntegerOption((o) =>
+                o
+                    .setName("count")
+                    .setDescription("Number of divisions to preview")
+                    .setRequired(true)
+            )
     );
 
 /**
@@ -75,6 +88,33 @@ export async function execute(interaction) {
                     .join("\n")
             )
             .setFooter({ text: season.name })
+            .setTimestamp();
+
+        return interaction.reply({ embeds: [embed] });
+    }
+
+    if (sub === "preview-auto") {
+        const count = interaction.options.getInteger("count", true);
+        const { season, divisions, counts, warnings, playerCount } =
+            await interaction.client.services.divisions.previewAuto({
+                guildId: interaction.guildId,
+                count,
+            });
+
+        const warningLines = warnings.length
+            ? `\n\n⚠️ ${warnings.join("\n⚠️ ")}`
+            : "";
+
+        const embed = new EmbedBuilder()
+            .setTitle("👀 Division Preview")
+            .setDescription(
+                divisions
+                    .map((d, i) => `• **${d.name}** — **${counts[i]}** players`)
+                    .join("\n") + warningLines
+            )
+            .setFooter({
+                text: `${season.name} • ${playerCount} total signups`,
+            })
             .setTimestamp();
 
         return interaction.reply({ embeds: [embed] });

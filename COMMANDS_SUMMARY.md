@@ -80,6 +80,8 @@
     - `count` (required) - Number of divisions to create
     - Requires signups to be closed
   - `assign-auto` - Automatically assign players to divisions by average (Div 1 = strongest)
+  - `preview-auto` - Preview auto-assignments without saving (signups can be open)
+    - `count` (required) - Number of divisions to preview
 
 #### `/division`
 - **Subcommands:**
