@@ -49,6 +49,18 @@ This document provides an overview of all Discord slash commands available in th
 
 ---
 
+### Match Result Submission Guide (Players)
+1. Play your scheduled match and grab the Autodarts match URL.
+2. Run `/result` with:
+   - `opponent`: your opponent
+   - `you`: legs you won
+   - `them`: legs your opponent won
+   - `url`: the Autodarts match link
+3. The bot posts your result as **pending** for admin review.
+4. Once approved by an admin, the result is fully submitted and standings update.
+
+---
+
 ### `/standings`
 **Usage:** View current season standings.
 
