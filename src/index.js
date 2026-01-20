@@ -126,7 +126,11 @@ client.services = {
         seasons: client.repos.seasons,
         signups: client.repos.signups,
     }),
-    matchStats: new MatchStatsService({ internalApi }),
+    matchStats: new MatchStatsService({
+        internalApi,
+        matches: client.repos.matches,
+        matchResults: client.repos.matchResults,
+    }),
     internalApi: internalApi,
     config: {
         adminUserId: env.ADMIN_USER_ID ?? null,
@@ -137,6 +141,7 @@ client.services.standingsPublisher = new StandingsPublisherService({
     standings: client.services.standings,
     seasons: client.repos.seasons,
     matches: client.repos.matches,
+    players: client.repos.players,
 });
 
 // Load commands (execute handlers) from files
