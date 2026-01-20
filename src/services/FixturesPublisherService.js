@@ -9,8 +9,9 @@ import { DomainError } from "../utils/DomainError.js";
  * @returns {string}
  */
 function fmtPlayer(id, nameById) {
-    if (nameById?.has(id)) return nameById.get(id);
-    return id;
+    if (id.startsWith("FAKE_")) return `\`${id}\``;
+    if (nameById?.has(id)) return `\`${nameById.get(id)}\``;
+    return `\`${id}\``;
 }
 
 function statusIcon(status) {

@@ -12,16 +12,16 @@ import { supabase } from "../db/supabase.js";
  */
 function fmtPlayer(id, nameById) {
     if (id.startsWith("FAKE_")) return `\`${id}\``;
-    if (nameById?.has(id)) return nameById.get(id);
-    return id;
+    if (nameById?.has(id)) return `\`${nameById.get(id)}\``;
+    return `\`${id}\``;
 }
 function medal(i) {
     return i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : "•";
 }
 function fmtPlayerInline(id, nameById) {
     if (id.startsWith("FAKE_")) return `\`${id}\``;
-    if (nameById?.has(id)) return nameById.get(id);
-    return id;
+    if (nameById?.has(id)) return `\`${nameById.get(id)}\``;
+    return `\`${id}\``;
 }
 
 function normalizeMatchResult(match) {
