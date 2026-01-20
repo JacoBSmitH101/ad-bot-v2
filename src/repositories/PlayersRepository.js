@@ -42,4 +42,21 @@ export class PlayersRepository {
         if (error) throw error;
         return data;
     }
+
+    /**
+     * List players by Discord user IDs.
+     * @param {{ discordUserIds: Array.<string> }} params
+     * @returns {Promise<Array.<Player>>}
+     */
+    async listByDiscordIds({ discordUserIds }) {
+        if (!discordUserIds || discordUserIds.length === 0) return [];
+
+        const { data, error } = await this.supabase
+            .from("players")
+            .select("*")
+            .in("discord_user_id", discordUserIds);
+
+        if (error) throw error;
+        return data ?? [];
+    }
 }
