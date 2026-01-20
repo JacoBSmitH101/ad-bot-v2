@@ -12,6 +12,8 @@
  * @property {string|null} fixtures_channel_id
  * @property {string|null} fixtures_message_id
  * @property {number|null} fixtures_week
+ * @property {string|null} stats_channel_id
+ * @property {string|null} stats_message_id
  * @property {string|null} started_at
  * @property {number|null} current_week
  * @property {string} created_at
@@ -274,6 +276,40 @@ export class SeasonRepository {
         const { data, error } = await this.supabase
             .from("seasons")
             .update({ fixtures_week: week })
+            .eq("id", seasonId)
+            .select("*")
+            .single();
+        if (error) throw error;
+        return data;
+    }
+
+    /**
+     * Set the Discord channel ID for stats leaders for a season.
+     * @param {string|number} seasonId
+     * @param {string} channelId Discord channel ID.
+     * @returns {Promise<Season>}
+     */
+    async setStatsChannel(seasonId, channelId) {
+        const { data, error } = await this.supabase
+            .from("seasons")
+            .update({ stats_channel_id: channelId })
+            .eq("id", seasonId)
+            .select("*")
+            .single();
+        if (error) throw error;
+        return data;
+    }
+
+    /**
+     * Set the Discord message ID for the stats leaders message for a season.
+     * @param {string|number} seasonId
+     * @param {string} messageId Discord message ID.
+     * @returns {Promise<Season>}
+     */
+    async setStatsMessageId(seasonId, messageId) {
+        const { data, error } = await this.supabase
+            .from("seasons")
+            .update({ stats_message_id: messageId })
             .eq("id", seasonId)
             .select("*")
             .single();

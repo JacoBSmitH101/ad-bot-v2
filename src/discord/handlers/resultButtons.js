@@ -132,6 +132,11 @@ export async function handleResultButtons(interaction) {
                 guildId: interaction.guildId,
             });
 
+            await interaction.client.services.statsLeadersPublisher.refresh({
+                client: interaction.client,
+                guildId: interaction.guildId,
+            });
+
             return true;
         }
 
