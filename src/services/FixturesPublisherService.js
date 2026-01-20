@@ -5,10 +5,12 @@ import { DomainError } from "../utils/DomainError.js";
  * Formats a player ID for display.
  * @private
  * @param {string} id
+ * @param {Map<string, string>} [nameById]
  * @returns {string}
  */
-function fmtPlayer(id) {
-    return id.startsWith("FAKE_") ? `\`${id}\`` : `<@${id}>`;
+function fmtPlayer(id, nameById) {
+    if (nameById?.has(id)) return nameById.get(id);
+    return id;
 }
 
 function statusIcon(status) {
@@ -34,15 +36,17 @@ function normalizeMatchResult(match) {
  */
 export class FixturesPublisherService {
     /**
-     * @param {{ seasons: SeasonRepository, matches: MatchRepository, divisions: DivisionRepository }} deps
+     * @param {{ seasons: SeasonRepository, matches: MatchRepository, divisions: DivisionRepository, players: PlayersRepository }} deps
      * @param {SeasonRepository} deps.seasons Season repository instance.
      * @param {MatchRepository} deps.matches Match repository instance.
      * @param {DivisionRepository} deps.divisions Division repository instance.
+     * @param {PlayersRepository} deps.players Players repository instance.
      */
-    constructor({ seasons, matches, divisions }) {
+    constructor({ seasons, matches, divisions, players }) {
         this.seasons = seasons;
         this.matches = matches;
         this.divisions = divisions;
+        this.players = players;
     }
 
     /**
@@ -155,6 +159,26 @@ export class FixturesPublisherService {
         const divisions = await this.divisions.listForSeason(season.id);
         const divNameById = new Map(divisions.map((d) => [d.id, d.name]));
 
+        const playerIds = new Set();
+        for (const m of matches) {
+            playerIds.add(m.player_a_id);
+            playerIds.add(m.player_b_id);
+        }
+
+        const nameById = new Map();
+        const idsToLookup = [...playerIds].filter(
+            (id) => !id.startsWith("FAKE_")
+        );
+        if (idsToLookup.length > 0) {
+            const players = await this.players.listByDiscordIds({
+                discordUserIds: idsToLookup,
+            });
+            for (const p of players) {
+                const name = p.display_name ?? p.discord_user_id;
+                nameById.set(p.discord_user_id, name);
+            }
+        }
+
         // group by division
         const byDiv = new Map();
         for (const m of matches) {
@@ -200,9 +224,10 @@ export class FixturesPublisherService {
                     }
 
                     // show raw A vs B orientation; it’s “fixtures”, not personal view
-                    return `${icon} ${fmtPlayer(m.player_a_id)} vs ${fmtPlayer(
-                        m.player_b_id
-                    )}${score}${proof}`;
+                    return `${icon} ${fmtPlayer(
+                        m.player_a_id,
+                        nameById
+                    )} vs ${fmtPlayer(m.player_b_id, nameById)}${score}${proof}`;
                 });
 
                 embed.addFields({

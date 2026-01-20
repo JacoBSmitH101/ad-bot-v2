@@ -69,6 +69,8 @@
   - `publish` - Publish/refresh the signup list message in the current channel
     - Creates a new message that auto-updates when signups change
     - If a message already exists in a different channel, creates a new one (old one becomes orphaned)
+  - `assign-role` - Assign a role to every signed-up player (signups must be closed)
+    - `role_id` (required) - Role ID (or role mention) to assign
 
 ### Division Management
 
@@ -78,6 +80,8 @@
     - `count` (required) - Number of divisions to create
     - Requires signups to be closed
   - `assign-auto` - Automatically assign players to divisions by average (Div 1 = strongest)
+  - `preview-auto` - Preview auto-assignments without saving (signups can be open)
+    - `count` (required) - Number of divisions to preview
 
 #### `/division`
 - **Subcommands:**

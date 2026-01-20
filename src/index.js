@@ -120,6 +120,7 @@ client.services = {
         seasons: client.repos.seasons,
         matches: client.repos.matches,
         divisions: client.repos.divisions,
+        players: client.repos.players,
     }),
     signupsPublisher: new SignupsPublisherService({
         seasons: client.repos.seasons,

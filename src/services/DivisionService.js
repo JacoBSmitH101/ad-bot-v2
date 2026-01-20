@@ -185,4 +185,69 @@ export class DivisionService {
             counts: groups.map((g) => g.length),
         };
     }
+
+    /**
+     * Preview auto-assignment without writing to the database.
+     * Allows previewing while signups are open.
+     * @param {{ guildId: string, count: number }} input
+     * @returns {Promise<{season: Season, divisions: Array.<Division>, counts: Array.<number>, warnings: Array.<string>, playerCount: number}>}
+     * @throws {DomainError} If invalid count or no signups.
+     */
+    async previewAuto({ guildId, count }) {
+        const season = await this._getSeasonOrThrow(guildId);
+
+        if (
+            !Number.isInteger(count) ||
+            count < 1 ||
+            count > this.MAX_DIVISIONS
+        ) {
+            throw new DomainError(
+                "INVALID_COUNT",
+                `Division count must be 1–${this.MAX_DIVISIONS}.`
+            );
+        }
+
+        const signups = await this.signups.listBySeason(season.id);
+        const playerCount = signups.length;
+
+        if (!playerCount) {
+            throw new DomainError("NO_SIGNUPS", "No signups yet.");
+        }
+
+        // Ensure high → low
+        signups.sort((a, b) => Number(b.avg_3dart) - Number(a.avg_3dart));
+
+        const groups = chunkDivisions(signups, count);
+        const maxAllowed = this._maxDivisionsAllowed(playerCount);
+        const warnings = [];
+
+        if (playerCount < this.MIN_PER_DIVISION) {
+            warnings.push(
+                `Need at least ${this.MIN_PER_DIVISION} players before creating/assigning divisions.`
+            );
+        }
+
+        if (count > maxAllowed) {
+            warnings.push(
+                `With ${playerCount} players and min ${this.MIN_PER_DIVISION} per division, max divisions is ${maxAllowed}.`
+            );
+        }
+
+        const existing = await this.divisions.listBySeason(season.id);
+        const divisions =
+            existing.length === count
+                ? existing
+                : Array.from({ length: count }, (_, i) => ({
+                      name: `Div ${i + 1}`,
+                      sort_order: i + 1,
+                  }));
+
+        return {
+            season,
+            divisions,
+            counts: groups.map((g) => g.length),
+            warnings,
+            playerCount,
+        };
+    }
 }
