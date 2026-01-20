@@ -60,9 +60,11 @@ export async function execute(interaction) {
         // Get the target user's member info for display name
         let targetDisplayName = targetUser.username;
         try {
-            const targetMember =
-                await interaction.guild.members.fetch(targetUser.id);
-            targetDisplayName = targetMember?.displayName ?? targetUser.username;
+            const targetMember = await interaction.guild.members.fetch(
+                targetUser.id
+            );
+            targetDisplayName =
+                targetMember?.displayName ?? targetUser.username;
         } catch (err) {
             // If fetch fails, just use username
             console.warn(
@@ -82,7 +84,11 @@ export async function execute(interaction) {
         const avatarUrl = targetUser.displayAvatarURL({ size: 256 });
 
         const embed = new EmbedBuilder()
-            .setTitle(isUpdate ? "🔁 Signup Updated (Admin)" : "✅ Signup Confirmed (Admin)")
+            .setTitle(
+                isUpdate
+                    ? "🔁 Signup Updated (Admin)"
+                    : "✅ Signup Confirmed (Admin)"
+            )
             .setDescription(`**${season.name}**`)
             .setColor(isUpdate ? 0xf59e0b : 0x57f287)
             .setThumbnail(avatarUrl)
@@ -117,7 +123,10 @@ export async function execute(interaction) {
 
         // Keep the published signup list updated
         await interaction.client.services.signupsPublisher
-            .refresh({ client: interaction.client, guildId: interaction.guildId })
+            .refresh({
+                client: interaction.client,
+                guildId: interaction.guildId,
+            })
             .catch((err) =>
                 console.error("Failed to refresh published signups:", err)
             );
@@ -130,4 +139,3 @@ export async function execute(interaction) {
         await interaction.editReply("❌ Something went wrong.");
     }
 }
-
