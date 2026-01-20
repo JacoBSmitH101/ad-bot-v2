@@ -35,6 +35,7 @@ import { FixturesPublisherService } from "./services/FixturesPublisherService.js
 import { InternalApiClient } from "./services/InternalApiClient.js";
 import { MatchStatsService } from "./services/MatchStatsService.js";
 import { SignupsPublisherService } from "./services/SignupsPublisherService.js";
+import { StatsLeadersPublisherService } from "./services/StatsLeadersPublisherService.js";
 
 async function dbPing() {
     const { error } = await supabase.from("seasons").select("id").limit(1);
@@ -139,6 +140,11 @@ client.services = {
 };
 client.services.standingsPublisher = new StandingsPublisherService({
     standings: client.services.standings,
+    seasons: client.repos.seasons,
+    matches: client.repos.matches,
+    players: client.repos.players,
+});
+client.services.statsLeadersPublisher = new StatsLeadersPublisherService({
     seasons: client.repos.seasons,
     matches: client.repos.matches,
     players: client.repos.players,
