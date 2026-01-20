@@ -7,16 +7,21 @@ import { supabase } from "../db/supabase.js";
  * Formats a player ID for display.
  * @private
  * @param {string} id
+ * @param {Map<string, string>} [nameById]
  * @returns {string}
  */
-function fmtPlayer(id) {
-    return id.startsWith("FAKE_") ? `\`${id}\`` : `<@${id}>`;
+function fmtPlayer(id, nameById) {
+    if (id.startsWith("FAKE_")) return `\`${id}\``;
+    if (nameById?.has(id)) return nameById.get(id);
+    return id;
 }
 function medal(i) {
     return i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : "•";
 }
-function fmtPlayerInline(id) {
-    return id.startsWith("FAKE_") ? `\`${id}\`` : `<@${id}>`;
+function fmtPlayerInline(id, nameById) {
+    if (id.startsWith("FAKE_")) return `\`${id}\``;
+    if (nameById?.has(id)) return nameById.get(id);
+    return id;
 }
 
 function normalizeMatchResult(match) {
@@ -106,7 +111,7 @@ function arrow(delta) {
 /**
  * Build a summary embed for standings.
  * @private
- * @param {{ seasonName: string, divisionName: string, standings: Array.<StandingsRow>, lastUpdateText: (string|null), playerAverages: (Map<string, number>|null) }} params
+ * @param {{ seasonName: string, divisionName: string, standings: Array.<StandingsRow>, lastUpdateText: (string|null), playerAverages: (Map<string, number>|null), nameById: (Map<string, string>|null) }} params
  * @returns {EmbedBuilder}
  */
 function buildSummaryEmbed({
@@ -115,6 +120,7 @@ function buildSummaryEmbed({
     standings,
     lastUpdateText = null,
     playerAverages = null,
+    nameById = null,
 }) {
     const lines = standings.map((r, idx) => {
         let avgText = "";
@@ -129,7 +135,8 @@ function buildSummaryEmbed({
         }
         const positionText = idx >= 3 ? `**${idx + 1}.** ` : "";
         return `${medal(idx)} ${positionText}**${fmtPlayer(
-            r.discordUserId
+            r.discordUserId,
+            nameById
         )}**${avgText} — **${r.points} pts**`;
     });
 
@@ -149,15 +156,17 @@ function buildSummaryEmbed({
  */
 export class StandingsPublisherService {
     /**
-     * @param {{ seasons: SeasonRepository, standings: StandingsService, matches: MatchRepository }} deps
+     * @param {{ seasons: SeasonRepository, standings: StandingsService, matches: MatchRepository, players: PlayersRepository }} deps
      * @param {SeasonRepository} deps.seasons Season repository instance.
      * @param {StandingsService} deps.standings Standings service instance.
      * @param {MatchRepository} deps.matches Match repository instance.
+     * @param {PlayersRepository} deps.players Players repository instance.
      */
-    constructor({ seasons, standings, matches }) {
+    constructor({ seasons, standings, matches, players }) {
         this.seasons = seasons;
         this.standings = standings;
         this.matches = matches;
+        this.players = players;
     }
 
     /**
@@ -311,6 +320,27 @@ export class StandingsPublisherService {
             guildId,
         });
 
+        // Fetch player names
+        const playerIds = new Set();
+        for (const d of res.divisions) {
+            for (const s of d.standings) {
+                if (!s.discordUserId.startsWith("FAKE_")) {
+                    playerIds.add(s.discordUserId);
+                }
+            }
+        }
+
+        const nameById = new Map();
+        if (playerIds.size > 0) {
+            const players = await this.players.listByDiscordIds({
+                discordUserIds: [...playerIds],
+            });
+            for (const p of players) {
+                const name = p.display_name ?? p.discord_user_id;
+                nameById.set(p.discord_user_id, name);
+            }
+        }
+
         // post one message per division and store IDs keyed by division id
         const messageIds = {};
 
@@ -326,6 +356,7 @@ export class StandingsPublisherService {
                 divisionName: d.division.name,
                 standings: d.standings,
                 playerAverages,
+                nameById,
             });
 
             const msg = await channel.send({ embeds: [embed] });
@@ -367,6 +398,34 @@ export class StandingsPublisherService {
         const res = await this.standings.getStandingsForCurrentSeason({
             guildId,
         });
+
+        // Fetch player names
+        const playerIds = new Set();
+        for (const d of res.divisions) {
+            for (const s of d.standings) {
+                if (!s.discordUserId.startsWith("FAKE_")) {
+                    playerIds.add(s.discordUserId);
+                }
+            }
+        }
+        if (context?.playerAId && !context.playerAId.startsWith("FAKE_")) {
+            playerIds.add(context.playerAId);
+        }
+        if (context?.playerBId && !context.playerBId.startsWith("FAKE_")) {
+            playerIds.add(context.playerBId);
+        }
+
+        const nameById = new Map();
+        if (playerIds.size > 0) {
+            const players = await this.players.listByDiscordIds({
+                discordUserIds: [...playerIds],
+            });
+            for (const p of players) {
+                const name = p.display_name ?? p.discord_user_id;
+                nameById.set(p.discord_user_id, name);
+            }
+        }
+
         let beforeDivisionStandings = null;
         let afterDivisionStandings = null;
         let movementText = null;
@@ -387,13 +446,14 @@ export class StandingsPublisherService {
             const parts = ids.map((id) => {
                 const b = beforeMap.get(id);
                 const a = afterMap.get(id);
-                if (!b || !a) return `${fmtPlayerInline(id)}: —`;
+                if (!b || !a) return `${fmtPlayerInline(id, nameById)}: —`;
                 const delta = a - b;
-                return `${fmtPlayerInline(id)} ${b}→**${a}** (${arrow(delta)})`;
+                return `${fmtPlayerInline(id, nameById)} ${b}→**${a}** (${arrow(delta)})`;
             });
 
             movementText = parts.length ? parts.join(" • ") : null;
         }
+
         let updated = 0;
 
         for (const d of res.divisions) {
@@ -416,8 +476,9 @@ export class StandingsPublisherService {
                     : "";
 
                 lastUpdateText = `🆕 **Last update:** ${fmtPlayerInline(
-                    context.playerAId
-                )} vs ${fmtPlayerInline(context.playerBId)}${score}${by}`;
+                    context.playerAId,
+                    nameById
+                )} vs ${fmtPlayerInline(context.playerBId, nameById)}${score}${by}`;
                 if (movementText) {
                     lastUpdateText += `\n📈 ${movementText}`;
                 }
@@ -435,6 +496,7 @@ export class StandingsPublisherService {
                 standings: d.standings,
                 lastUpdateText,
                 playerAverages,
+                nameById,
             });
 
             await msg.edit({ embeds: [embed] });

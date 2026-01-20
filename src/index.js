@@ -141,6 +141,7 @@ client.services.standingsPublisher = new StandingsPublisherService({
     standings: client.services.standings,
     seasons: client.repos.seasons,
     matches: client.repos.matches,
+    players: client.repos.players,
 });
 
 // Load commands (execute handlers) from files
