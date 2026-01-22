@@ -493,6 +493,7 @@ export class StatsLeadersPublisherService {
         // Build embed
         const embed = new EmbedBuilder()
             .setTitle(`📊 Stat Leaders — ${season.name}`)
+            .setDescription("All stats shown are **running averages** across all matches played.")
             .setTimestamp();
 
         // Average field
