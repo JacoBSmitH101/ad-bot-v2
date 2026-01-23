@@ -3,18 +3,18 @@ import { DomainError } from "../../utils/DomainError.js";
 
 /**
  * Discord slash command: /opponent-stats
- * View opponent statistics and head-to-head record.
- * Shows opponent's current season stats, overall stats, and your record against them.
+ * View another player's statistics in the same format as /mystats.
+ * Takes one player and shows their overall stats, current season, and recent matches.
  * @module commands/opponent-stats
  */
 
 export const data = new SlashCommandBuilder()
     .setName("opponent-stats")
-    .setDescription("View opponent statistics and head-to-head record")
+    .setDescription("View another player's statistics")
     .addUserOption((opt) =>
         opt
-            .setName("opponent")
-            .setDescription("Opponent to scout")
+            .setName("player")
+            .setDescription("Player to view stats for")
             .setRequired(true)
     );
 
@@ -38,11 +38,11 @@ function formatStat(value, format = "decimal") {
  * @returns {Promise<void>}
  */
 export async function execute(interaction) {
-    const opponent = interaction.options.getUser("opponent", true);
+    const player = interaction.options.getUser("player", true);
 
-    if (opponent.id === interaction.user.id) {
+    if (player.id === interaction.user.id) {
         await interaction.reply({
-            content: "❌ You can't scout yourself! Use `/mystats` instead.",
+            content: "❌ Use `/mystats` to view your own stats.",
             flags: MessageFlags.Ephemeral,
         });
         return;
@@ -51,69 +51,71 @@ export async function execute(interaction) {
     await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
     try {
-        const { record, playerAStats, playerBStats } =
-            await interaction.client.services.playerStats.getHeadToHead({
+        const { stats: overallStats, recentMatches } =
+            await interaction.client.services.playerStats.getOverallStats({
                 guildId: interaction.guildId,
-                playerAId: interaction.user.id,
-                playerBId: opponent.id,
+                discordUserId: player.id,
             });
 
-        // Determine which stats are for the opponent
-        // The record is calculated from the user's perspective (playerAId = user)
-        // So playerAStats is the user's stats, playerBStats is the opponent's stats
-        const opponentStats = playerBStats;
-
-        const { season, stats: opponentSeasonStats } =
+        const { season, stats: seasonStats } =
             await interaction.client.services.playerStats.getCurrentSeasonStats({
                 guildId: interaction.guildId,
-                discordUserId: opponent.id,
+                discordUserId: player.id,
             }).catch(() => ({ season: null, stats: null }));
 
-        const opponentDisplayName =
-            opponent.displayName ?? opponent.username ?? opponent.id;
+        const displayName = player.displayName ?? player.username ?? player.id;
 
         const embed = new EmbedBuilder()
-            .setTitle(`🔍 Opponent Scouting — ${opponentDisplayName}`)
-            .setColor(0xf59e0b)
-            .setThumbnail(opponent.displayAvatarURL())
+            .setTitle(`📊 Statistics — ${displayName}`)
+            .setColor(0x5865f2)
+            .setThumbnail(player.displayAvatarURL())
             .setTimestamp();
 
-        // Head-to-head record
-        const totalH2H = record.wins + record.losses;
-        const h2hWinRate =
-            totalH2H > 0 ? ((record.wins / totalH2H) * 100).toFixed(1) : "0.0";
+        // Overall stats (same format as mystats)
+        const winRate =
+            overallStats.played > 0
+                ? ((overallStats.wins / overallStats.played) * 100).toFixed(1)
+                : "0.0";
         embed.addFields({
-            name: "⚔️ Head-to-Head Record",
+            name: "🎯 Overall Stats (All Seasons)",
             value: [
-                `**Matches:** ${totalH2H} played`,
-                `**Your Record:** ${record.wins}W - ${record.losses}L (${h2hWinRate}% win rate)`,
-                `**Legs:** ${record.legsFor} for, ${record.legsAgainst} against (${record.legsFor - record.legsAgainst > 0 ? "+" : ""}${record.legsFor - record.legsAgainst} diff)`,
-            ].join("\n"),
+                `**Matches:** ${overallStats.played} played`,
+                `**Record:** ${overallStats.wins}W - ${overallStats.losses}L (${winRate}% win rate)`,
+                `**Legs:** ${overallStats.legsFor} for, ${overallStats.legsAgainst} against (${overallStats.legDiff > 0 ? "+" : ""}${overallStats.legDiff} diff)`,
+                `**Points:** ${overallStats.points}`,
+                overallStats.average
+                    ? `**Average:** ${formatStat(overallStats.average)}`
+                    : null,
+                overallStats.checkoutPercent
+                    ? `**Checkout %:** ${formatStat(overallStats.checkoutPercent, "percent")}`
+                    : null,
+                overallStats.highestCheckout
+                    ? `**Highest Checkout:** ${overallStats.highestCheckout}`
+                    : null,
+            ]
+                .filter(Boolean)
+                .join("\n"),
             inline: false,
         });
 
-        // Opponent's current season stats
-        if (season && opponentSeasonStats) {
-            const opponentWinRate =
-                opponentSeasonStats.played > 0
-                    ? (
-                          (opponentSeasonStats.wins /
-                              opponentSeasonStats.played) *
-                          100
-                      ).toFixed(1)
+        // Current season stats (same format as mystats)
+        if (season && seasonStats) {
+            const seasonWinRate =
+                seasonStats.played > 0
+                    ? ((seasonStats.wins / seasonStats.played) * 100).toFixed(1)
                     : "0.0";
             embed.addFields({
-                name: `📅 ${opponentDisplayName}'s Current Season`,
+                name: `📅 Current Season: ${season.name}`,
                 value: [
-                    `**Matches:** ${opponentSeasonStats.played} played`,
-                    `**Record:** ${opponentSeasonStats.wins}W - ${opponentSeasonStats.losses}L (${opponentWinRate}% win rate)`,
-                    `**Legs:** ${opponentSeasonStats.legsFor} for, ${opponentSeasonStats.legsAgainst} against`,
-                    `**Points:** ${opponentSeasonStats.points}`,
-                    opponentSeasonStats.average
-                        ? `**Average:** ${formatStat(opponentSeasonStats.average)}`
+                    `**Matches:** ${seasonStats.played} played`,
+                    `**Record:** ${seasonStats.wins}W - ${seasonStats.losses}L (${seasonWinRate}% win rate)`,
+                    `**Legs:** ${seasonStats.legsFor} for, ${seasonStats.legsAgainst} against (${seasonStats.legDiff > 0 ? "+" : ""}${seasonStats.legDiff} diff)`,
+                    `**Points:** ${seasonStats.points}`,
+                    seasonStats.average
+                        ? `**Average:** ${formatStat(seasonStats.average)}`
                         : null,
-                    opponentSeasonStats.checkoutPercent
-                        ? `**Checkout %:** ${formatStat(opponentSeasonStats.checkoutPercent, "percent")}`
+                    seasonStats.checkoutPercent
+                        ? `**Checkout %:** ${formatStat(seasonStats.checkoutPercent, "percent")}`
                         : null,
                 ]
                     .filter(Boolean)
@@ -122,45 +124,19 @@ export async function execute(interaction) {
             });
         }
 
-        // Opponent's overall stats
-        const overallWinRate =
-            opponentStats.played > 0
-                ? ((opponentStats.wins / opponentStats.played) * 100).toFixed(1)
-                : "0.0";
-        embed.addFields({
-            name: `🎯 ${opponentDisplayName}'s Overall Stats`,
-            value: [
-                `**Matches:** ${opponentStats.played} played`,
-                `**Record:** ${opponentStats.wins}W - ${opponentStats.losses}L (${overallWinRate}% win rate)`,
-                `**Legs:** ${opponentStats.legsFor} for, ${opponentStats.legsAgainst} against`,
-                opponentStats.average
-                    ? `**Average:** ${formatStat(opponentStats.average)}`
-                    : null,
-                opponentStats.checkoutPercent
-                    ? `**Checkout %:** ${formatStat(opponentStats.checkoutPercent, "percent")}`
-                    : null,
-            ]
-                .filter(Boolean)
-                .join("\n"),
-            inline: false,
-        });
-
-        // Recent head-to-head matches
-        if (record.recentMatches.length > 0) {
-            const recentLines = record.recentMatches.slice(0, 5).map((m) => {
+        // Recent matches (same format as mystats)
+        if (recentMatches.length > 0) {
+            const recentLines = recentMatches.slice(0, 5).map((m) => {
                 const result = m.won ? "✅" : "❌";
-                return `${result} **${m.playerLegs}-${m.opponentLegs}** (Week ${m.week})`;
+                const opponent = m.opponentId.startsWith("FAKE_")
+                    ? `\`${m.opponentId}\``
+                    : `<@${m.opponentId}>`;
+                return `${result} vs ${opponent}: **${m.playerLegs}-${m.opponentLegs}**`;
             });
 
-            embed.addFields({
-                name: "📋 Recent Matches vs This Opponent",
-                value: recentLines.join("\n") || "No recent matches",
-                inline: false,
-            });
-        } else {
             embed.addFields({
                 name: "📋 Recent Matches",
-                value: "No head-to-head matches yet",
+                value: recentLines.join("\n") || "No recent matches",
                 inline: false,
             });
         }

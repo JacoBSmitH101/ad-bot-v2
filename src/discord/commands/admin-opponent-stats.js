@@ -84,9 +84,6 @@ export async function execute(interaction) {
                 playerBId: player2.id,
             });
 
-        // Determine which stats belong to which player
-        // The record is calculated from player1's perspective (playerAId = player1)
-        // So playerAStats is player1's stats, playerBStats is player2's stats
         const player1Stats = playerAStats;
         const player2Stats = playerBStats;
 
@@ -95,7 +92,6 @@ export async function execute(interaction) {
         const player2DisplayName =
             player2.displayName ?? player2.username ?? player2.id;
 
-        // Get current season stats for both players
         const { season, stats: player1SeasonStats } =
             await interaction.client.services.playerStats.getCurrentSeasonStats({
                 guildId: interaction.guildId,
