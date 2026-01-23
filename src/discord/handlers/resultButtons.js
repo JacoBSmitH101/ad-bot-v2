@@ -108,6 +108,7 @@ export async function handleResultButtons(interaction) {
                     playerBId: match.player_b_id,
                     scoreText,
                     actorName: interaction.user.username,
+                    reportedBy: match.reported_by,
                     beforeStandings: before.standings,
                     afterStandings: after.standings,
                 },

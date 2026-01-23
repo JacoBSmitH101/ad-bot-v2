@@ -374,7 +374,7 @@ export class StandingsPublisherService {
      * Recompute standings and edit existing published messages.
      * Call this after every confirm. Optionally includes movement context.
      * @param {{ client: Client, guildId: string, context: (Object|null) }} params
-     * @param {Object|null} [params.context] Optional context with divisionId, beforeStandings, afterStandings, playerAId, playerBId, scoreText, actorName
+     * @param {Object|null} [params.context] Optional context with divisionId, beforeStandings, afterStandings, playerAId, playerBId, scoreText, actorName, reportedBy
      * @returns {Promise<{updated: number, skipped: boolean}>}
      * @throws {DomainError} If no season.
      */
@@ -413,6 +413,9 @@ export class StandingsPublisherService {
         }
         if (context?.playerBId && !context.playerBId.startsWith("FAKE_")) {
             playerIds.add(context.playerBId);
+        }
+        if (context?.reportedBy && !context.reportedBy.startsWith("FAKE_")) {
+            playerIds.add(context.reportedBy);
         }
 
         const nameById = new Map();
@@ -471,8 +474,17 @@ export class StandingsPublisherService {
                 const score = context.scoreText
                     ? ` — ${context.scoreText}`
                     : "";
-                const by = context.actorName
-                    ? ` (by ${context.actorName})`
+                
+                // Use reported_by from database if available, otherwise fall back to actorName
+                let actorName = null;
+                if (context.reportedBy && nameById.has(context.reportedBy)) {
+                    actorName = nameById.get(context.reportedBy);
+                } else if (context.actorName) {
+                    actorName = context.actorName;
+                }
+                
+                const by = actorName
+                    ? ` (by ${actorName})`
                     : "";
 
                 lastUpdateText = `🆕 **Last update:** ${fmtPlayerInline(
