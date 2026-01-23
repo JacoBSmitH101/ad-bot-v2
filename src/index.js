@@ -72,6 +72,13 @@ client.repos = {
     matchResults: new MatchResultsRepository({ supabase, schema }),
     divisionPlayers: new DivisionPlayersRepository({ supabase, schema }),
 };
+
+const matchStatsService = new MatchStatsService({
+    internalApi,
+    matches: client.repos.matches,
+    matchResults: client.repos.matchResults,
+});
+
 client.services = {
     resultsNotifier: new ResultsNotifierService({
         config: {
@@ -128,16 +135,12 @@ client.services = {
         seasons: client.repos.seasons,
         signups: client.repos.signups,
     }),
-    matchStats: new MatchStatsService({
-        internalApi,
-        matches: client.repos.matches,
-        matchResults: client.repos.matchResults,
-    }),
+    matchStats: matchStatsService,
     playerStats: new PlayerStatsService({
         seasons: client.repos.seasons,
         matches: client.repos.matches,
         players: client.repos.players,
-        matchStats: client.services.matchStats,
+        matchStats: matchStatsService,
     }),
     internalApi: internalApi,
     config: {
