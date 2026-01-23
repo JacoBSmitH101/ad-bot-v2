@@ -455,4 +455,98 @@ export class MatchRepository {
         if (error) throw error;
         return data ?? [];
     }
+
+    /**
+     * List all confirmed matches for a player across all seasons in a guild with their results.
+     * @param {{ guildId: string, discordUserId: string }} params
+     * @returns {Promise<Array.<MatchWithResult>>}
+     */
+    async listAllConfirmedForPlayerInGuild({ guildId, discordUserId }) {
+        // First get all seasons for this guild
+        const { data: seasons, error: seasonsError } = await this.supabase
+            .from("seasons")
+            .select("id")
+            .eq("guild_id", guildId);
+
+        if (seasonsError) throw seasonsError;
+        if (!seasons || seasons.length === 0) return [];
+
+        const seasonIds = seasons.map((s) => s.id);
+
+        const { data, error } = await this.supabase
+            .from("matches")
+            .select(
+                `
+                id,
+                season_id,
+                division_id,
+                week,
+                player_a_id,
+                player_b_id,
+                status,
+                confirmed_at,
+                match_results (
+                    legs_a,
+                    legs_b,
+                    proof_url
+                )
+            `
+            )
+            .in("season_id", seasonIds)
+            .eq("status", "confirmed")
+            .or(
+                `player_a_id.eq.${discordUserId},player_b_id.eq.${discordUserId}`
+            )
+            .order("confirmed_at", { ascending: false });
+
+        if (error) throw error;
+        return data ?? [];
+    }
+
+    /**
+     * List all confirmed matches between two players in a guild with their results.
+     * @param {{ guildId: string, playerAId: string, playerBId: string }} params
+     * @returns {Promise<Array.<MatchWithResult>>}
+     */
+    async listHeadToHeadMatches({ guildId, playerAId, playerBId }) {
+        // First get all seasons for this guild
+        const { data: seasons, error: seasonsError } = await this.supabase
+            .from("seasons")
+            .select("id")
+            .eq("guild_id", guildId);
+
+        if (seasonsError) throw seasonsError;
+        if (!seasons || seasons.length === 0) return [];
+
+        const seasonIds = seasons.map((s) => s.id);
+
+        const { data, error } = await this.supabase
+            .from("matches")
+            .select(
+                `
+                id,
+                season_id,
+                division_id,
+                week,
+                player_a_id,
+                player_b_id,
+                status,
+                confirmed_at,
+                match_results (
+                    legs_a,
+                    legs_b,
+                    proof_url
+                )
+            `
+            )
+            .in("season_id", seasonIds)
+            .eq("status", "confirmed")
+            .or(
+                `and(player_a_id.eq.${playerAId},player_b_id.eq.${playerBId}),and(player_a_id.eq.${playerBId},player_b_id.eq.${playerAId})`
+            )
+            .order("confirmed_at", { ascending: false });
+
+        if (error) throw error;
+        return data ?? [];
+    }
 }

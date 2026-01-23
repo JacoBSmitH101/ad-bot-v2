@@ -221,7 +221,7 @@ export class FixturesPublisherService {
                     if (mr) {
                         score = ` — **${mr.legs_a}-${mr.legs_b}**`;
                         if (mr.proof_url)
-                            proof = ` ([Match link](${mr.proof_url}))`;
+                            proof = ` ([Match](${mr.proof_url}))`;
                     }
 
                     // show raw A vs B orientation; it’s “fixtures”, not personal view
