@@ -37,7 +37,6 @@ import { MatchStatsService } from "./services/MatchStatsService.js";
 import { SignupsPublisherService } from "./services/SignupsPublisherService.js";
 import { StatsLeadersPublisherService } from "./services/StatsLeadersPublisherService.js";
 import { PlayerStatsService } from "./services/PlayerStatsService.js";
-import { PlayerStatsService } from "./services/PlayerStatsService.js";
 
 async function dbPing() {
     const { error } = await supabase.from("seasons").select("id").limit(1);
