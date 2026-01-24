@@ -90,7 +90,7 @@ export async function execute(interaction) {
                 ? ((overallStats.wins / overallStats.played) * 100).toFixed(1)
                 : "0.0";
         embed.addFields({
-            name: "🎯 Overall Stats (All Seasons)",
+            name: "🎯 Overall Stats (Since Season 6)",
             value: [
                 `**Matches:** ${overallStats.played} played`,
                 `**Record:** ${overallStats.wins}W - ${overallStats.losses}L (${winRate}% win rate)`,
