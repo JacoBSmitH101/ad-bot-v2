@@ -157,11 +157,21 @@ export class FixturesPublisherService {
             week,
         });
 
+        // pull unreported matches from previous weeks
+        const pastMatches = await this.matches.listUnreportedBeforeWeek({
+            seasonId: season.id,
+            week,
+        });
+
         const divisions = await this.divisions.listForSeason(season.id);
         const divNameById = new Map(divisions.map((d) => [d.id, d.name]));
 
         const playerIds = new Set();
         for (const m of matches) {
+            playerIds.add(m.player_a_id);
+            playerIds.add(m.player_b_id);
+        }
+        for (const m of pastMatches) {
             playerIds.add(m.player_a_id);
             playerIds.add(m.player_b_id);
         }
@@ -185,6 +195,13 @@ export class FixturesPublisherService {
         for (const m of matches) {
             if (!byDiv.has(m.division_id)) byDiv.set(m.division_id, []);
             byDiv.get(m.division_id).push(m);
+        }
+
+        // group past matches by division
+        const pastByDiv = new Map();
+        for (const m of pastMatches) {
+            if (!pastByDiv.has(m.division_id)) pastByDiv.set(m.division_id, []);
+            pastByDiv.get(m.division_id).push(m);
         }
 
         const embed = new EmbedBuilder()
@@ -224,7 +241,7 @@ export class FixturesPublisherService {
                             proof = ` ([Match](${mr.proof_url}))`;
                     }
 
-                    // show raw A vs B orientation; it’s “fixtures”, not personal view
+                    // show raw A vs B orientation; it's "fixtures", not personal view
                     return `${icon} ${fmtPlayer(
                         m.player_a_id,
                         nameById
@@ -233,6 +250,45 @@ export class FixturesPublisherService {
 
                 embed.addFields({
                     name: divName,
+                    value: lines.join("\n"),
+                    inline: false,
+                });
+            }
+        }
+
+        // Add section for past unreported matches
+        if (pastMatches.length > 0) {
+            const pastDivIds = [...pastByDiv.keys()].sort((a, b) =>
+                String(divNameById.get(a) ?? a).localeCompare(
+                    divNameById.get(b) ?? b
+                )
+            );
+
+            for (const divId of pastDivIds) {
+                const ms = pastByDiv.get(divId) ?? [];
+                const divName = divNameById.get(divId) ?? `Division ${divId}`;
+
+                const lines = ms.map((m) => {
+                    const icon = statusIcon(m.status);
+                    const mr = normalizeMatchResult(m);
+
+                    let score = "";
+                    let proof = "";
+
+                    if (mr) {
+                        score = ` — **${mr.legs_a}-${mr.legs_b}**`;
+                        if (mr.proof_url)
+                            proof = ` ([Match](${mr.proof_url}))`;
+                    }
+
+                    return `${icon} ${fmtPlayer(
+                        m.player_a_id,
+                        nameById
+                    )} vs ${fmtPlayer(m.player_b_id, nameById)}${score}${proof}`;
+                });
+
+                embed.addFields({
+                    name: `${divName} (Past Weeks)`,
                     value: lines.join("\n"),
                     inline: false,
                 });
