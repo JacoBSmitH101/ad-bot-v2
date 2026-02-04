@@ -292,9 +292,31 @@ export class StatsLeadersPublisherService {
             const players = await this.players.listByDiscordIds({
                 discordUserIds: playerIds,
             });
+            const foundIds = new Set();
             for (const p of players) {
                 const name = p.display_name ?? p.discord_user_id;
                 nameById.set(p.discord_user_id, name);
+                foundIds.add(p.discord_user_id);
+            }
+
+            // Fallback: try to fetch missing players from Discord API
+            // This handles edge cases where players exist in matches but not in the players table
+            const missingIds = playerIds.filter((id) => !foundIds.has(id));
+            if (missingIds.length > 0 && client) {
+                for (const missingId of missingIds) {
+                    try {
+                        const discordUser = await client.users.fetch(missingId);
+                        const name = discordUser.displayName ?? discordUser.username;
+                        nameById.set(missingId, name);
+                        // Also upsert to players table for future lookups
+                        await this.players.upsert({
+                            discordUserId: missingId,
+                            displayName: name,
+                        });
+                    } catch (err) {
+                        // User not found or other error - will fall back to showing ID
+                    }
+                }
             }
         }
 
@@ -455,9 +477,31 @@ export class StatsLeadersPublisherService {
             const players = await this.players.listByDiscordIds({
                 discordUserIds: playerIds,
             });
+            const foundIds = new Set();
             for (const p of players) {
                 const name = p.display_name ?? p.discord_user_id;
                 nameById.set(p.discord_user_id, name);
+                foundIds.add(p.discord_user_id);
+            }
+
+            // Fallback: try to fetch missing players from Discord API
+            // This handles edge cases where players exist in matches but not in the players table
+            const missingIds = playerIds.filter((id) => !foundIds.has(id));
+            if (missingIds.length > 0 && client) {
+                for (const missingId of missingIds) {
+                    try {
+                        const discordUser = await client.users.fetch(missingId);
+                        const name = discordUser.displayName ?? discordUser.username;
+                        nameById.set(missingId, name);
+                        // Also upsert to players table for future lookups
+                        await this.players.upsert({
+                            discordUserId: missingId,
+                            displayName: name,
+                        });
+                    } catch (err) {
+                        // User not found or other error - will fall back to showing ID
+                    }
+                }
             }
         }
 
