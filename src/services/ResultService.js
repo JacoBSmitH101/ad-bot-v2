@@ -360,6 +360,131 @@ export class ResultService {
     }
 
     /**
+     * Submit a match result on behalf of two players (admin action).
+     * Finds the match between the two players and submits the result.
+     * @param {{ guildId: string, adminDiscordUserId: string, adminDisplayName: string, playerAId: string, playerBId: string, legsA: number, legsB: number, proofUrl: string, autoConfirm: boolean }} params
+     * @returns {Promise<{season: Season, match: Match, result: MatchResult}>}
+     * @throws {DomainError} If no season, season not active, invalid players, invalid score, no match found, or already reported.
+     */
+    async adminSubmitResult({
+        guildId,
+        adminDiscordUserId,
+        adminDisplayName,
+        playerAId,
+        playerBId,
+        legsA,
+        legsB,
+        proofUrl,
+        autoConfirm = false,
+    }) {
+        const season = await this.seasons.getCurrentForGuild(guildId);
+        if (!season) throw new DomainError("NO_SEASON", "No season found.");
+
+        if (season.status !== "active") {
+            throw new DomainError(
+                "INVALID_STATE",
+                `Season must be active (current: ${season.status})`
+            );
+        }
+
+        if (playerAId === playerBId) {
+            throw new DomainError(
+                "INVALID_OPPONENT",
+                "Players must be different."
+            );
+        }
+
+        this.#validateScore(legsA, legsB);
+
+        // FK safety for reported_by and confirmed_by
+        await this.players.upsert({
+            discordUserId: adminDiscordUserId,
+            displayName: adminDisplayName,
+        });
+        await this.players.upsert({ discordUserId: playerAId, displayName: null });
+        await this.players.upsert({ discordUserId: playerBId, displayName: null });
+
+        // find candidate matches between the two players
+        const candidates = await this.matches.findOpenMatchesBetweenPlayers({
+            seasonId: season.id,
+            userA: playerAId,
+            userB: playerBId,
+        });
+
+        if (candidates.length === 0) {
+            throw new DomainError(
+                "NO_MATCH",
+                "No open match found between these players in the current season."
+            );
+        }
+
+        // Pick the best candidate (scheduled > reported > disputed)
+        const match = this.#pickBestCandidate(candidates, playerAId);
+
+        // Verify the match has the correct players
+        const matchHasCorrectPlayers =
+            (match.player_a_id === playerAId && match.player_b_id === playerBId) ||
+            (match.player_a_id === playerBId && match.player_b_id === playerAId);
+
+        if (!matchHasCorrectPlayers) {
+            throw new DomainError(
+                "MATCH_MISMATCH",
+                "Match found does not match the specified players."
+            );
+        }
+
+        // don't allow overwriting someone else's report (unless admin is overriding)
+        if (
+            match.status === "reported" &&
+            match.reported_by &&
+            match.reported_by !== adminDiscordUserId
+        ) {
+            throw new DomainError(
+                "ALREADY_REPORTED",
+                "This match has already been reported by another user and is awaiting verification."
+            );
+        }
+
+        // Ensure legsA and legsB match the match's player_a_id and player_b_id orientation
+        // If match has playerA as A, use legsA/legsB as-is
+        // If match has playerA as B, swap them
+        const finalLegsA =
+            match.player_a_id === playerAId ? legsA : legsB;
+        const finalLegsB =
+            match.player_a_id === playerAId ? legsB : legsA;
+
+        // save scoreline (stored as A-B, always)
+        const result = await this.matchResults.upsert({
+            matchId: match.id,
+            legsA: finalLegsA,
+            legsB: finalLegsB,
+            proofUrl,
+        });
+
+        // set match to reported (or confirmed if autoConfirm is true)
+        const status = autoConfirm ? "confirmed" : "reported";
+        const patch = {
+            status,
+            reported_by: adminDiscordUserId,
+            reported_at: new Date().toISOString(),
+        };
+
+        if (autoConfirm) {
+            patch.confirmed_by = adminDiscordUserId;
+            patch.confirmed_at = new Date().toISOString();
+        } else {
+            patch.confirmed_by = null;
+            patch.confirmed_at = null;
+        }
+
+        patch.disputed_at = null;
+
+        const updatedMatch = await this.matches.update(match.id, patch);
+
+        return { season, match: updatedMatch, result };
+    }
+
+    /**
      * Reset a match to scheduled status (admin action).
      * Deletes the result and optionally clears result message references.
      * @param {{ guildId: string, adminDiscordUserId: string, adminDisplayName: string, matchId: string|number, clearResultMessage: boolean }} params
