@@ -112,6 +112,7 @@ client.services = {
         divisions: client.repos.divisions,
         schedules: client.repos.schedules,
         matches: client.repos.matches,
+        players: client.repos.players,
     }),
     standings: new StandingsService({
         divisions: client.repos.divisions,

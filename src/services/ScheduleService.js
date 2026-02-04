@@ -7,17 +7,19 @@ import { roundRobin } from "../utils/roundRobin.js";
  */
 export class ScheduleService {
     /**
-     * @param {{ seasons: SeasonRepository, divisions: DivisionRepository, schedules: ScheduleRepository, matches: MatchRepository }} deps
+     * @param {{ seasons: SeasonRepository, divisions: DivisionRepository, schedules: ScheduleRepository, matches: MatchRepository, players: PlayersRepository }} deps
      * @param {SeasonRepository} deps.seasons Season repository instance.
      * @param {DivisionRepository} deps.divisions Division repository instance.
      * @param {ScheduleRepository} deps.schedules Schedule repository instance.
      * @param {MatchRepository} deps.matches Match repository instance.
+     * @param {PlayersRepository} deps.players Players repository instance.
      */
-    constructor({ seasons, divisions, schedules, matches }) {
+    constructor({ seasons, divisions, schedules, matches, players }) {
         this.seasons = seasons;
         this.divisions = divisions;
         this.schedules = schedules;
         this.matches = matches;
+        this.players = players;
     }
 
     /**
@@ -98,11 +100,14 @@ export class ScheduleService {
 
         const payload = latest.payload;
         const rows = [];
+        const playerIds = new Set();
 
         for (const div of payload.divisions) {
             div.weeks.forEach((pairs, weekIdx) => {
                 const week = weekIdx + 1;
                 pairs.forEach(([a, b]) => {
+                    playerIds.add(a);
+                    playerIds.add(b);
                     rows.push({
                         season_id: season.id,
                         division_id: div.division_id,
@@ -113,6 +118,17 @@ export class ScheduleService {
                     });
                 });
             });
+        }
+
+        // Ensure all players exist in the players table before creating matches
+        // This prevents issues where player IDs show instead of names in fixtures/stats
+        for (const playerId of playerIds) {
+            if (!playerId.startsWith("FAKE_")) {
+                await this.players.upsert({
+                    discordUserId: playerId,
+                    displayName: null,
+                });
+            }
         }
 
         await this.matches.insertMany(rows);
