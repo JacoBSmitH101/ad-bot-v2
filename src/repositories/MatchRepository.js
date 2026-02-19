@@ -356,6 +356,23 @@ export class MatchRepository {
     }
 
     /**
+     * List all matches for a division (excluding void matches).
+     * @param {{ seasonId: string|number, divisionId: number }} params
+     * @returns {Promise<Array.<Match>>}
+     */
+    async listAllForDivision({ seasonId, divisionId }) {
+        const { data, error } = await this.supabase
+            .from("matches")
+            .select("id, player_a_id, player_b_id, status")
+            .eq("season_id", seasonId)
+            .eq("division_id", divisionId)
+            .neq("status", "void");
+
+        if (error) throw error;
+        return data ?? [];
+    }
+
+    /**
      * List matches for a specific season and week with results joined.
      * @param {{ seasonId: string|number, week: number }} params
      * @returns {Promise<Array.<MatchWithResult>>}
