@@ -17,7 +17,7 @@ function buildFullEmbeds({ season, divisions }) {
             return (
                 `${medal(idx)} **${fmtPlayer(r.discordUserId)}** — **${
                     r.points
-                } pts**\n` +
+                } pts** (${r.played}/${r.totalMatches})\n` +
                 `\`W ${r.wins} • L ${r.losses} • LF ${r.legsFor} • LA ${r.legsAgainst} • LD ${ld}\``
             );
         });
@@ -45,7 +45,7 @@ function buildMyPositionEmbed({ season, divisionName, row, rank, total }) {
                 value: `${fmtPlayer(row.discordUserId)}`,
                 inline: true,
             },
-            { name: "Points", value: `**${row.points}**`, inline: true },
+            { name: "Points", value: `**${row.points}** (${row.played}/${row.totalMatches})`, inline: true },
             {
                 name: "Record",
                 value: `W ${row.wins} / L ${row.losses}`,

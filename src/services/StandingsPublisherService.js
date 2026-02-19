@@ -137,7 +137,7 @@ function buildSummaryEmbed({
         return `${medal(idx)} ${positionText}**${fmtPlayer(
             r.discordUserId,
             nameById
-        )}**${avgText} — **${r.points} pts**`;
+        )}**${avgText} — **${r.points} pts** (${r.played}/${r.totalMatches})`;
     });
 
     const desc =

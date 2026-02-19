@@ -5,6 +5,7 @@ import { DomainError } from "../utils/DomainError.js";
  * @property {string} discordUserId
  * @property {string} name
  * @property {number} played
+ * @property {number} totalMatches
  * @property {number} wins
  * @property {number} losses
  * @property {number} legsFor
@@ -72,6 +73,7 @@ export class StandingsService {
                     discordUserId: p.discord_user_id,
                     name: p.display_name ?? p.discord_user_id,
                     played: 0,
+                    totalMatches: 0,
                     wins: 0,
                     losses: 0,
                     legsFor: 0,
@@ -79,6 +81,25 @@ export class StandingsService {
                     legDiff: 0,
                     points: 0,
                 });
+            }
+
+            // Get all matches for the division (excluding void) to calculate total matches
+            const allMatches = await this.matches.listAllForDivision({
+                seasonId: season.id,
+                divisionId: div.id,
+            });
+
+            // Count total matches per player
+            for (const m of allMatches) {
+                const aId = m.player_a_id;
+                const bId = m.player_b_id;
+                
+                if (table.has(aId)) {
+                    table.get(aId).totalMatches += 1;
+                }
+                if (table.has(bId)) {
+                    table.get(bId).totalMatches += 1;
+                }
             }
 
             const confirmed =
@@ -105,6 +126,7 @@ export class StandingsService {
                         discordUserId: aId,
                         name: aId,
                         played: 0,
+                        totalMatches: 0,
                         wins: 0,
                         losses: 0,
                         legsFor: 0,
@@ -118,6 +140,7 @@ export class StandingsService {
                         discordUserId: bId,
                         name: bId,
                         played: 0,
+                        totalMatches: 0,
                         wins: 0,
                         losses: 0,
                         legsFor: 0,
@@ -217,6 +240,7 @@ export class StandingsService {
                 discordUserId: p.discord_user_id,
                 name: p.display_name ?? p.discord_user_id,
                 played: 0,
+                totalMatches: 0,
                 wins: 0,
                 losses: 0,
                 legsFor: 0,
@@ -224,6 +248,25 @@ export class StandingsService {
                 legDiff: 0,
                 points: 0,
             });
+        }
+
+        // Get all matches for the division (excluding void) to calculate total matches
+        const allMatches = await this.matches.listAllForDivision({
+            seasonId: season.id,
+            divisionId,
+        });
+
+        // Count total matches per player
+        for (const m of allMatches) {
+            const aId = m.player_a_id;
+            const bId = m.player_b_id;
+            
+            if (table.has(aId)) {
+                table.get(aId).totalMatches += 1;
+            }
+            if (table.has(bId)) {
+                table.get(bId).totalMatches += 1;
+            }
         }
 
         const confirmed =
@@ -247,6 +290,7 @@ export class StandingsService {
                     discordUserId: aId,
                     name: aId,
                     played: 0,
+                    totalMatches: 0,
                     wins: 0,
                     losses: 0,
                     legsFor: 0,
@@ -260,6 +304,7 @@ export class StandingsService {
                     discordUserId: bId,
                     name: bId,
                     played: 0,
+                    totalMatches: 0,
                     wins: 0,
                     losses: 0,
                     legsFor: 0,

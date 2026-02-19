@@ -54,7 +54,7 @@ function buildSummaryEmbeds({ season, divisions }) {
             (r, idx) =>
                 `${medal(idx)} **${fmtPlayer(r.discordUserId)}** — **${
                     r.points
-                } pts**`
+                } pts** (${r.played}/${r.totalMatches})`
         );
 
         return new EmbedBuilder()
@@ -77,7 +77,7 @@ function buildFullEmbeds({ season, divisions }) {
             return (
                 `${medal(idx)} **${fmtPlayer(r.discordUserId)}** — **${
                     r.points
-                } pts**\n` +
+                } pts** (${r.played}/${r.totalMatches})\n` +
                 `\`W ${r.wins} • L ${r.losses} • LF ${r.legsFor} • LA ${r.legsAgainst} • LD ${ld}\``
             );
         });
