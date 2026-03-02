@@ -485,6 +485,84 @@ export class ResultService {
     }
 
     /**
+     * Forfeit all open matches for a player as 4–0 losses (admin action).
+     * Applies to the current active season only. For each scheduled/reported/disputed
+     * match involving the player, creates/overwrites a result where the player
+     * loses 0–4 and the opponent wins 4–0, and marks the match as confirmed.
+     *
+     * @param {{ guildId: string, adminDiscordUserId: string, adminDisplayName: string, forfeitingPlayerId: string }} params
+     * @returns {Promise<{ season: Season, updated: Array<{ match: Match, result: MatchResult }> }>}
+     * @throws {DomainError} If no active season is found.
+     */
+    async adminForfeitAllMatchesForPlayer({
+        guildId,
+        adminDiscordUserId,
+        adminDisplayName,
+        forfeitingPlayerId,
+    }) {
+        const season = await this.seasons.getCurrentForGuild(guildId);
+        if (!season) throw new DomainError("NO_SEASON", "No season found.");
+        if (season.status !== "active") {
+            throw new DomainError(
+                "INVALID_STATE",
+                `Season must be active (current: ${season.status})`
+            );
+        }
+
+        // Ensure admin and player exist in players table for FK / audit safety
+        await this.players.upsert({
+            discordUserId: adminDiscordUserId,
+            displayName: adminDisplayName,
+        });
+        await this.players.upsert({
+            discordUserId: forfeitingPlayerId,
+            displayName: null,
+        });
+
+        // Get all matches for this player in the current season
+        const allMatches =
+            await this.matches.listForPlayerInSeasonWithResults({
+                seasonId: season.id,
+                discordUserId: forfeitingPlayerId,
+            });
+
+        // Filter to only matches that are not already confirmed or void
+        const targetStatuses = new Set(["scheduled", "reported", "disputed"]);
+        const targets = allMatches.filter((m) =>
+            targetStatuses.has(m.status)
+        );
+
+        const updated = [];
+
+        for (const match of targets) {
+            // Determine orientation and assign 0–4 to forfeiting player
+            const forfeiterIsA = match.player_a_id === forfeitingPlayerId;
+            const legsA = forfeiterIsA ? 0 : 4;
+            const legsB = forfeiterIsA ? 4 : 0;
+
+            const result = await this.matchResults.upsert({
+                matchId: match.id,
+                legsA,
+                legsB,
+                proofUrl: null,
+            });
+
+            const updatedMatch = await this.matches.update(match.id, {
+                status: "confirmed",
+                reported_by: adminDiscordUserId,
+                reported_at: new Date().toISOString(),
+                confirmed_by: adminDiscordUserId,
+                confirmed_at: new Date().toISOString(),
+                disputed_at: null,
+            });
+
+            updated.push({ match: updatedMatch, result });
+        }
+
+        return { season, updated };
+    }
+
+    /**
      * Reset a match to scheduled status (admin action).
      * Deletes the result and optionally clears result message references.
      * @param {{ guildId: string, adminDiscordUserId: string, adminDisplayName: string, matchId: string|number, clearResultMessage: boolean }} params
