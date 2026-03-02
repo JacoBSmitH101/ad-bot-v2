@@ -509,14 +509,10 @@ export class ResultService {
             );
         }
 
-        // Ensure admin and player exist in players table for FK / audit safety
+        // Ensure admin exists in players table for FK / audit safety
         await this.players.upsert({
             discordUserId: adminDiscordUserId,
             displayName: adminDisplayName,
-        });
-        await this.players.upsert({
-            discordUserId: forfeitingPlayerId,
-            displayName: null,
         });
 
         // Get all matches for this player in the current season
