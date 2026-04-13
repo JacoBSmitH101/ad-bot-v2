@@ -44,18 +44,18 @@ export class SignupService {
         if (season.status !== "signups_open") {
             throw new DomainError(
                 "SIGNUPS_NOT_OPEN",
-                "You can only drop out while signups are open."
+                "You can only drop out while signups are open.",
             );
         }
 
         const existing = await this.signups.getBySeasonAndUser(
             season.id,
-            discordUserId
+            discordUserId,
         );
         if (!existing) {
             throw new DomainError(
                 "NOT_SIGNED_UP",
-                "You are not signed up for the current season."
+                "You are not signed up for the current season.",
             );
         }
 
@@ -90,7 +90,7 @@ export class SignupService {
         if (season.status !== "signups_open") {
             throw new DomainError(
                 "SIGNUPS_NOT_OPEN",
-                "Signups are not open right now."
+                "Signups are not open right now.",
             );
         }
 
@@ -100,12 +100,12 @@ export class SignupService {
         if (avgNum < 10 || avgNum > 120) {
             throw new DomainError(
                 "INVALID_AVG",
-                "Average must be between 10.0 and 120.0."
+                "Average must be between 10.0 and 120.0.",
             );
         }
         const existing = await this.signups.getBySeasonAndUser(
             season.id,
-            discordUserId
+            discordUserId,
         );
 
         // Ensure player exists

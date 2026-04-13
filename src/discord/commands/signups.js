@@ -19,27 +19,27 @@ export const data = new SlashCommandBuilder()
     .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
     .setDMPermission(false)
     .addSubcommand((s) =>
-        s.setName("list").setDescription("List signups for the current season")
+        s.setName("list").setDescription("List signups for the current season"),
     )
     .addSubcommand((s) =>
         s
             .setName("publish")
             .setDescription(
-                "Publish/refresh the signup list message in this channel"
-            )
+                "Publish/refresh the signup list message in this channel",
+            ),
     )
     .addSubcommand((s) =>
         s
             .setName("assign-role")
             .setDescription(
-                "Assign a role to all players signed up (signups must be closed)"
+                "Assign a role to all players signed up (signups must be closed)",
             )
             .addStringOption((o) =>
                 o
                     .setName("role_id")
                     .setDescription("Role ID to assign (or role mention)")
-                    .setRequired(true)
-            )
+                    .setRequired(true),
+            ),
     );
 
 /**
@@ -63,7 +63,7 @@ export async function execute(interaction) {
                 });
 
             await interaction.editReply(
-                `✅ Published signups for **${season.name}** in this channel.`
+                `✅ Published signups for **${season.name}** in this channel.`,
             );
         } catch (err) {
             if (err instanceof DomainError) {
@@ -85,14 +85,15 @@ export async function execute(interaction) {
 
         if (!roleId) {
             await interaction.editReply(
-                "❌ Invalid role ID. Provide a role ID or role mention."
+                "❌ Invalid role ID. Provide a role ID or role mention.",
             );
             return;
         }
 
-        const season = await interaction.client.repos.seasons.getCurrentForGuild(
-            interaction.guildId
-        );
+        const season =
+            await interaction.client.repos.seasons.getCurrentForGuild(
+                interaction.guildId,
+            );
         if (!season) {
             await interaction.editReply("❌ No season found.");
             return;
@@ -100,7 +101,7 @@ export async function execute(interaction) {
 
         if (season.status !== "signups_closed") {
             await interaction.editReply(
-                `❌ Signups must be closed to run this command (current: ${season.status}).`
+                `❌ Signups must be closed to run this command (current: ${season.status}).`,
             );
             return;
         }
@@ -115,13 +116,13 @@ export async function execute(interaction) {
 
         if (!role.editable) {
             await interaction.editReply(
-                "❌ I don't have permission to assign that role (role is higher than my highest role or managed)."
+                "❌ I don't have permission to assign that role (role is higher than my highest role or managed).",
             );
             return;
         }
 
         const signups = await interaction.client.repos.signups.listBySeason(
-            season.id
+            season.id,
         );
 
         if (signups.length === 0) {
@@ -137,7 +138,7 @@ export async function execute(interaction) {
         for (const signup of signups) {
             try {
                 const member = await interaction.guild.members.fetch(
-                    signup.discord_user_id
+                    signup.discord_user_id,
                 );
                 if (!member) {
                     missingMembers += 1;
@@ -151,13 +152,13 @@ export async function execute(interaction) {
 
                 await member.roles.add(
                     role.id,
-                    `Season signup role assignment for ${season.name}`
+                    `Season signup role assignment for ${season.name}`,
                 );
                 assigned += 1;
             } catch (err) {
                 console.warn(
                     `Failed to assign role to ${signup.discord_user_id}:`,
-                    err?.message ?? err
+                    err?.message ?? err,
                 );
                 failed += 1;
             }
@@ -168,7 +169,7 @@ export async function execute(interaction) {
                 `• Assigned: **${assigned}**\n` +
                 `• Already had role: **${alreadyHad}**\n` +
                 `• Not in server: **${missingMembers}**\n` +
-                `• Failed: **${failed}**`
+                `• Failed: **${failed}**`,
         );
         return;
     }
@@ -176,7 +177,7 @@ export async function execute(interaction) {
     if (sub !== "list") return;
 
     const season = await interaction.client.repos.seasons.getCurrentForGuild(
-        interaction.guildId
+        interaction.guildId,
     );
     if (!season)
         return interaction.reply({
@@ -185,7 +186,7 @@ export async function execute(interaction) {
         });
 
     const signups = await interaction.client.repos.signups.listBySeason(
-        season.id
+        season.id,
     );
 
     const lines = signups.length
@@ -194,7 +195,7 @@ export async function execute(interaction) {
                   (s, i) =>
                       `**${i + 1}.** <@${s.discord_user_id}> — **${
                           s.avg_3dart
-                      }**`
+                      }**`,
               )
               .join("\n")
         : "_No signups yet._";

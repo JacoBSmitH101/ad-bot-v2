@@ -81,13 +81,19 @@ export class SignupsPublisherService {
 
         const signups = await this.signups.listBySeason(season.id);
 
+        const users = await Promise.all(
+            signups.map((s) =>
+                client.users.fetch(s.discord_user_id).catch(() => null)
+            )
+        );
+
         const lines = signups.length
-            ? signups.map(
-                  (s, i) =>
-                      `**${i + 1}.** <@${s.discord_user_id}> — **${
-                          s.avg_3dart
-                      }**avg`
-              )
+            ? signups.map((s, i) => {
+                  const user = users[i];
+                  return `**${i + 1}.** ${
+                      user ?? `<@${s.discord_user_id}>`
+                  } — **${s.avg_3dart}**avg`;
+              })
             : ["_No signups yet._"];
 
         const embed = new EmbedBuilder()
