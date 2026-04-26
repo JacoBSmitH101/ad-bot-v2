@@ -36,6 +36,25 @@ export const data = new SlashCommandBuilder()
     )
     .addSubcommand((s) =>
         s
+            .setName("assign-manual")
+            .setDescription("Manually assign specific players to a division")
+            .addStringOption((o) =>
+                o
+                    .setName("division")
+                    .setDescription('Division name (e.g. "Div 1" or "1")')
+                    .setRequired(true)
+            )
+            .addStringOption((o) =>
+                o
+                    .setName("players")
+                    .setDescription(
+                        "Paste @mentions or user IDs separated by spaces/commas/newlines"
+                    )
+                    .setRequired(true)
+            )
+    )
+    .addSubcommand((s) =>
+        s
             .setName("preview-auto")
             .setDescription(
                 "Preview auto-assignments (no DB changes, signups can be open)"
@@ -93,6 +112,36 @@ export async function execute(interaction) {
         return interaction.reply({ embeds: [embed] });
     }
 
+    if (sub === "assign-manual") {
+        const divisionName = interaction.options.getString("division", true);
+        const playersRaw = interaction.options.getString("players", true);
+
+        const ids = parseDiscordUserIds(playersRaw);
+
+        const { season, division, count } =
+            await interaction.client.services.divisions.assignManual({
+                guildId: interaction.guildId,
+                divisionName,
+                discordUserIds: ids,
+            });
+
+        const preview = ids
+            .slice(0, 25)
+            .map((id) => `<@${id}>`)
+            .join(", ");
+        const suffix = ids.length > 25 ? ` …(+${ids.length - 25} more)` : "";
+
+        const embed = new EmbedBuilder()
+            .setTitle("✍️ Manual Assignment Saved")
+            .setDescription(
+                `**${division.name}**\n\nAssigned **${count}** player(s):\n${preview}${suffix}`
+            )
+            .setFooter({ text: season.name })
+            .setTimestamp();
+
+        return interaction.reply({ embeds: [embed] });
+    }
+
     if (sub === "preview-auto") {
         const count = interaction.options.getInteger("count", true);
         const { season, divisions, counts, warnings, playerCount } =
@@ -119,4 +168,20 @@ export async function execute(interaction) {
 
         return interaction.reply({ embeds: [embed] });
     }
+}
+
+function parseDiscordUserIds(input) {
+    const text = String(input ?? "");
+    const ids = [];
+
+    // Matches <@123>, <@!123>, or raw numeric IDs
+    const mentionRe = /<@!?(\d+)>/g;
+    let m;
+    while ((m = mentionRe.exec(text))) ids.push(m[1]);
+
+    // Also accept bare IDs in the text
+    const bareRe = /\b(\d{15,25})\b/g;
+    while ((m = bareRe.exec(text))) ids.push(m[1]);
+
+    return Array.from(new Set(ids));
 }

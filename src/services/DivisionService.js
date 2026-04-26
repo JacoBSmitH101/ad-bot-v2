@@ -187,6 +187,72 @@ export class DivisionService {
     }
 
     /**
+     * Manually assign a list of players to a specific division.
+     * Removes those players from any other division in the season first.
+     * @param {{ guildId: string, divisionName: string, discordUserIds: Array.<string> }} input
+     * @returns {Promise<{season: Season, division: Division, count: number}>}
+     */
+    async assignManual({ guildId, divisionName, discordUserIds }) {
+        const season = await this._getSeasonOrThrow(guildId);
+        this._assertSignupsClosed(season);
+
+        const ids = Array.from(new Set((discordUserIds ?? []).filter(Boolean)));
+        if (!ids.length) {
+            throw new DomainError(
+                "NO_PLAYERS",
+                "Provide at least one player to assign."
+            );
+        }
+
+        // Allow shorthand: "1" -> "Div 1"
+        const normalizedDivisionName =
+            /^\d+$/.test(String(divisionName).trim())
+                ? `Div ${String(divisionName).trim()}`
+                : String(divisionName).trim();
+
+        const division = await this.divisions.getBySeasonAndName(
+            season.id,
+            normalizedDivisionName
+        );
+        if (!division) {
+            throw new DomainError(
+                "NO_DIVISION",
+                `Division "${normalizedDivisionName}" not found for this season.`
+            );
+        }
+
+        // Validate all users are signed up so we can seed_avg consistently
+        const signups = await this.signups.listBySeason(season.id);
+        const avgByUser = new Map(
+            signups.map((s) => [s.discord_user_id, Number(s.avg_3dart)])
+        );
+
+        const missing = ids.filter((id) => !avgByUser.has(id));
+        if (missing.length) {
+            throw new DomainError(
+                "NOT_SIGNED_UP",
+                `These users are not signed up for the current season: ${missing
+                    .map((id) => `<@${id}>`)
+                    .join(", ")}`
+            );
+        }
+
+        // Remove existing memberships for these players across the season
+        await this.divisions.removePlayersForSeason(season.id, ids);
+
+        const rows = ids.map((discord_user_id, i) => ({
+            division_id: division.id,
+            discord_user_id,
+            seed_avg: avgByUser.get(discord_user_id) ?? null,
+            seed_rank: i + 1,
+        }));
+
+        await this.divisions.addPlayersBulk(rows);
+
+        return { season, division, count: ids.length };
+    }
+
+    /**
      * Preview auto-assignment without writing to the database.
      * Allows previewing while signups are open.
      * @param {{ guildId: string, count: number }} input
