@@ -9,7 +9,7 @@ import { DomainError } from "../../utils/DomainError.js";
 /**
  * Discord slash command: /signups
  * Admin-only command group for managing signup displays.
- * Subcommands: list, publish
+ * Subcommands: list, publish, assign-role
  * @module commands/signups
  */
 
@@ -32,7 +32,7 @@ export const data = new SlashCommandBuilder()
         s
             .setName("assign-role")
             .setDescription(
-                "Assign a role to all players signed up (signups must be closed)",
+                "Assign a role to all signed-up players (signups open, closed, or season active)",
             )
             .addStringOption((o) =>
                 o
@@ -99,9 +99,14 @@ export async function execute(interaction) {
             return;
         }
 
-        if (season.status !== "signups_closed") {
+        const assignRoleAllowed = [
+            "signups_open",
+            "signups_closed",
+            "active",
+        ];
+        if (!assignRoleAllowed.includes(season.status)) {
             await interaction.editReply(
-                `❌ Signups must be closed to run this command (current: ${season.status}).`,
+                `❌ Role assignment is only available while signups are open/closed or the season is active (current: **${season.status}**).`,
             );
             return;
         }
