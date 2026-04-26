@@ -11,6 +11,7 @@
     "test": "echo \"Error: no test specified\" && exit 1",
     "dev": "node scripts/registerCommands.js && node src/index.js",
     "seed:fake": "node scripts/seedFakeSingups.js",
+    "players:backfill-names": "node scripts/backfillPlayerDisplayNames.js",
     "docs": "jsdoc -c jsdoc.json"
   },
   "author": "",

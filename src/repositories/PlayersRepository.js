@@ -59,4 +59,31 @@ export class PlayersRepository {
         if (error) throw error;
         return data ?? [];
     }
+
+    /**
+     * List players with no usable display name (for one-off backfills).
+     * Includes SQL NULL and empty string (PostgREST does not treat '' as NULL).
+     * @returns {Promise<Array.<{ discord_user_id: string, display_name: string|null }>>}
+     */
+    async listWithNullDisplayName() {
+        const { data: nullRows, error: nullErr } = await this.supabase
+            .from("players")
+            .select("discord_user_id, display_name")
+            .is("display_name", null);
+
+        if (nullErr) throw nullErr;
+
+        const { data: emptyRows, error: emptyErr } = await this.supabase
+            .from("players")
+            .select("discord_user_id, display_name")
+            .eq("display_name", "");
+
+        if (emptyErr) throw emptyErr;
+
+        const byId = new Map();
+        for (const r of [...(nullRows ?? []), ...(emptyRows ?? [])]) {
+            byId.set(r.discord_user_id, r);
+        }
+        return [...byId.values()];
+    }
 }
