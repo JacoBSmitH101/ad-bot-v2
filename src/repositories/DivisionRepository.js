@@ -98,6 +98,35 @@ export class DivisionRepository {
     }
 
     /**
+     * Remove division memberships for a set of users within a season.
+     * Useful for manual reassignment without wiping the entire season.
+     * @param {string|number} seasonId
+     * @param {Array.<string>} discordUserIds
+     * @returns {Promise<void>}
+     */
+    async removePlayersForSeason(seasonId, discordUserIds) {
+        if (!discordUserIds?.length) return;
+
+        const { data: divs, error: divErr } = await this.supabase
+            .from("divisions")
+            .select("id")
+            .eq("season_id", seasonId);
+
+        if (divErr) throw divErr;
+        if (!divs?.length) return;
+
+        const divisionIds = divs.map((d) => d.id);
+
+        const { error } = await this.supabase
+            .from("division_players")
+            .delete()
+            .in("division_id", divisionIds)
+            .in("discord_user_id", discordUserIds);
+
+        if (error) throw error;
+    }
+
+    /**
      * Add players to divisions in bulk.
      * @param {Array.<{division_id: number, discord_user_id: string, seed_avg: (number|null), seed_rank: (number|null)}>} rows
      * @returns {Promise<Array.<DivisionPlayer>>}
