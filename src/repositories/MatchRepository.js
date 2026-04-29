@@ -373,6 +373,86 @@ export class MatchRepository {
     }
 
     /**
+     * Count confirmed matches for a player in a division within a season.
+     * @param {{ seasonId: string|number, divisionId: number|string, discordUserId: string }} params
+     * @returns {Promise<number>}
+     */
+    async countConfirmedForPlayerInDivision({
+        seasonId,
+        divisionId,
+        discordUserId,
+    }) {
+        const { count, error } = await this.supabase
+            .from("matches")
+            .select("*", { count: "exact", head: true })
+            .eq("season_id", seasonId)
+            .eq("division_id", divisionId)
+            .eq("status", "confirmed")
+            .or(
+                `player_a_id.eq.${discordUserId},player_b_id.eq.${discordUserId}`
+            );
+
+        if (error) throw error;
+        return count ?? 0;
+    }
+
+    /**
+     * Replace a player id in matches for a season/division.
+     * - full_replace: all matches in season/division
+     * - future_only: week >= effectiveWeek AND status not in (confirmed, void)
+     *
+     * @param {{
+     *   seasonId: string|number,
+     *   divisionId: number|string,
+     *   outDiscordUserId: string,
+     *   inDiscordUserId: string,
+     *   mode: ('full_replace'|'future_only'),
+     *   effectiveWeek: (number|null),
+     * }} params
+     * @returns {Promise<number>} number of matches updated (sum of a-side + b-side updates)
+     */
+    async replacePlayerInDivisionMatches({
+        seasonId,
+        divisionId,
+        outDiscordUserId,
+        inDiscordUserId,
+        mode,
+        effectiveWeek,
+    }) {
+        const now = new Date().toISOString();
+
+        const applyFilters = (q) => {
+            q = q.eq("season_id", seasonId).eq("division_id", divisionId);
+            if (mode === "future_only") {
+                q = q
+                    .gte("week", effectiveWeek)
+                    .not("status", "in", "(confirmed,void)");
+            }
+            return q;
+        };
+
+        const { data: aData, error: aErr } = await applyFilters(
+            this.supabase.from("matches")
+        )
+            .update({ player_a_id: inDiscordUserId, updated_at: now })
+            .eq("player_a_id", outDiscordUserId)
+            .select("id");
+
+        if (aErr) throw aErr;
+
+        const { data: bData, error: bErr } = await applyFilters(
+            this.supabase.from("matches")
+        )
+            .update({ player_b_id: inDiscordUserId, updated_at: now })
+            .eq("player_b_id", outDiscordUserId)
+            .select("id");
+
+        if (bErr) throw bErr;
+
+        return (aData ?? []).length + (bData ?? []).length;
+    }
+
+    /**
      * List matches for a specific season and week with results joined.
      * @param {{ seasonId: string|number, week: number }} params
      * @returns {Promise<Array.<MatchWithResult>>}
