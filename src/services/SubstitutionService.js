@@ -77,33 +77,43 @@ export class SubstitutionService {
                 discordUserId: outDiscordUserId,
             });
             if (!division) {
-                throw new DomainError(
-                    "NOT_IN_DIVISION",
-                    "Outgoing player is not assigned to any division in the current season."
-                );
+                const divIds =
+                    await this.matches.listDivisionIdsForPlayerInSeason({
+                        seasonId: season.id,
+                        discordUserId: outDiscordUserId,
+                    });
+
+                if (divIds.length === 0) {
+                    throw new DomainError(
+                        "NOT_IN_DIVISION",
+                        "Outgoing player is not assigned to any division in the current season."
+                    );
+                }
+
+                if (divIds.length > 1) {
+                    throw new DomainError(
+                        "AMBIGUOUS_DIVISION",
+                        "Outgoing player appears in matches across multiple divisions. Please specify the division."
+                    );
+                }
+
+                const divisions = await this.divisions.listBySeason(season.id);
+                const byId = new Map(divisions.map((d) => [String(d.id), d]));
+                division = byId.get(String(divIds[0])) ?? null;
+                if (!division) {
+                    throw new DomainError(
+                        "BAD_DIVISION",
+                        "Could not resolve the player’s division. Please specify the division."
+                    );
+                }
             }
         }
 
-        // Guard against swapping into an existing roster slot (would create self-matches / duplicates).
+        // Guard against swapping into an existing roster slot (would create duplicates).
         const roster = await this.divisions.listDivisionPlayers(division.id);
         const outInRoster = roster.some(
             (r) => r.discord_user_id === outDiscordUserId
         );
-        if (!outInRoster) {
-            const actual = await this.divisions
-                .findDivisionForPlayerInSeason({
-                    seasonId: season.id,
-                    discordUserId: outDiscordUserId,
-                })
-                .catch(() => null);
-
-            throw new DomainError(
-                "NOT_IN_DIVISION",
-                actual?.name
-                    ? `Outgoing player is not in ${division.name}. They are in ${actual.name}.`
-                    : "Outgoing player is not in this division."
-            );
-        }
         const inAlreadyInRoster = roster.some(
             (r) => r.discord_user_id === inDiscordUserId
         );
@@ -155,12 +165,22 @@ export class SubstitutionService {
         let updatedMatches = 0;
 
         if (mode === "full_replace") {
-            const rosterUpdated = await this.divisions.replacePlayerInDivision({
-                divisionId: division.id,
-                outDiscordUserId,
-                inDiscordUserId,
-            });
-            rosterChanged = rosterUpdated > 0;
+            if (outInRoster) {
+                const rosterUpdated =
+                    await this.divisions.replacePlayerInDivision({
+                        divisionId: division.id,
+                        outDiscordUserId,
+                        inDiscordUserId,
+                    });
+                rosterChanged = rosterUpdated > 0;
+            } else {
+                // Roster may be missing/out of sync; ensure incoming is present so standings can show them.
+                await this.divisions.ensurePlayerInDivision({
+                    divisionId: division.id,
+                    discordUserId: inDiscordUserId,
+                });
+                rosterChanged = true;
+            }
 
             updatedMatches = await this.matches.replacePlayerInDivisionMatches({
                 seasonId: season.id,
