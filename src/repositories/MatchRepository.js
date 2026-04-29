@@ -397,6 +397,25 @@ export class MatchRepository {
     }
 
     /**
+     * List distinct division IDs where a player appears in matches for a season.
+     * Useful as a fallback when roster membership is missing/out of sync.
+     * @param {{ seasonId: string|number, discordUserId: string }} params
+     * @returns {Promise<Array.<(number|string)>>}
+     */
+    async listDivisionIdsForPlayerInSeason({ seasonId, discordUserId }) {
+        const { data, error } = await this.supabase
+            .from("matches")
+            .select("division_id")
+            .eq("season_id", seasonId)
+            .or(`player_a_id.eq.${discordUserId},player_b_id.eq.${discordUserId}`);
+
+        if (error) throw error;
+
+        const ids = new Set((data ?? []).map((r) => r.division_id));
+        return [...ids];
+    }
+
+    /**
      * Replace a player id in matches for a season/division.
      * - full_replace: all matches in season/division
      * - future_only: week >= effectiveWeek AND status not in (confirmed, void)
