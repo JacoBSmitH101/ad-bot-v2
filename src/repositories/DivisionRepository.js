@@ -206,6 +206,23 @@ export class DivisionRepository {
     }
 
     /**
+     * Remove a player from a division roster.
+     * @param {{ divisionId: string|number, discordUserId: string }} params
+     * @returns {Promise<number>} number of rows deleted
+     */
+    async removePlayerFromDivision({ divisionId, discordUserId }) {
+        const { data, error } = await this.supabase
+            .from("division_players")
+            .delete()
+            .eq("division_id", divisionId)
+            .eq("discord_user_id", discordUserId)
+            .select("division_id, discord_user_id");
+
+        if (error) throw error;
+        return (data ?? []).length;
+    }
+
+    /**
      * Ensure a player is present in a division roster (no-op if already exists).
      * @param {{ divisionId: string|number, discordUserId: string }} params
      * @returns {Promise<void>}

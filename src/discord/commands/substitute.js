@@ -73,6 +73,10 @@ export async function execute(interaction) {
         await interaction.client.services.standingsPublisher
             ?.refresh({ client: interaction.client, guildId: interaction.guildId })
             .catch(() => {});
+        // Best-effort refresh of published fixtures too (if published).
+        await interaction.client.services.fixturesPublisher
+            ?.refresh({ client: interaction.client, guildId: interaction.guildId })
+            .catch(() => {});
 
         const extra =
             res.substitution.mode === "future_only"

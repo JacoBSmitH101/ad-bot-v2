@@ -117,11 +117,17 @@ export class SubstitutionService {
         const inAlreadyInRoster = roster.some(
             (r) => r.discord_user_id === inDiscordUserId
         );
-        if (inAlreadyInRoster) {
-            throw new DomainError(
-                "IN_ALREADY_IN_DIVISION",
-                "Incoming player is already in this division."
-            );
+        if (mode === "future_only") {
+            // future_only is naturally idempotent for roster membership.
+        } else if (mode === "full_replace") {
+            // full_replace can be re-run after a prior attempt:
+            // if incoming is already in roster, we remove outgoing from roster (if present)
+            // rather than failing early.
+            if (inAlreadyInRoster && !outInRoster) {
+                // proceed; roster is already "incoming-only" or out-of-sync
+            } else if (inAlreadyInRoster && outInRoster) {
+                // We'll remove outgoing roster entry in the full_replace branch below.
+            }
         }
 
         if (mode !== "full_replace" && mode !== "future_only") {
@@ -166,13 +172,24 @@ export class SubstitutionService {
 
         if (mode === "full_replace") {
             if (outInRoster) {
-                const rosterUpdated =
-                    await this.divisions.replacePlayerInDivision({
-                        divisionId: division.id,
-                        outDiscordUserId,
-                        inDiscordUserId,
-                    });
-                rosterChanged = rosterUpdated > 0;
+                if (inAlreadyInRoster) {
+                    // Avoid unique constraint violation: incoming already exists, so just remove outgoing.
+                    const removed = await this.divisions.removePlayerFromDivision(
+                        {
+                            divisionId: division.id,
+                            discordUserId: outDiscordUserId,
+                        }
+                    );
+                    rosterChanged = removed > 0;
+                } else {
+                    const rosterUpdated =
+                        await this.divisions.replacePlayerInDivision({
+                            divisionId: division.id,
+                            outDiscordUserId,
+                            inDiscordUserId,
+                        });
+                    rosterChanged = rosterUpdated > 0;
+                }
             } else {
                 // Roster may be missing/out of sync; ensure incoming is present so standings can show them.
                 await this.divisions.ensurePlayerInDivision({
