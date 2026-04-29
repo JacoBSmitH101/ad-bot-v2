@@ -169,7 +169,7 @@ export class DivisionRepository {
     }) {
         const { data, error } = await this.supabase
             .from("division_players")
-            .update({ discord_user_id: inDiscordUserId, updated_at: new Date().toISOString() })
+            .update({ discord_user_id: inDiscordUserId })
             .eq("division_id", divisionId)
             .eq("discord_user_id", outDiscordUserId)
             .select("division_id, discord_user_id");
