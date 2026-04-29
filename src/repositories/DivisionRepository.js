@@ -158,6 +158,48 @@ export class DivisionRepository {
     }
 
     /**
+     * Replace one player with another within a single division roster.
+     * @param {{ divisionId: string|number, outDiscordUserId: string, inDiscordUserId: string }} params
+     * @returns {Promise<number>} number of rows updated
+     */
+    async replacePlayerInDivision({
+        divisionId,
+        outDiscordUserId,
+        inDiscordUserId,
+    }) {
+        const { data, error } = await this.supabase
+            .from("division_players")
+            .update({ discord_user_id: inDiscordUserId, updated_at: new Date().toISOString() })
+            .eq("division_id", divisionId)
+            .eq("discord_user_id", outDiscordUserId)
+            .select("division_id, discord_user_id");
+
+        if (error) throw error;
+        return (data ?? []).length;
+    }
+
+    /**
+     * Ensure a player is present in a division roster (no-op if already exists).
+     * @param {{ divisionId: string|number, discordUserId: string }} params
+     * @returns {Promise<void>}
+     */
+    async ensurePlayerInDivision({ divisionId, discordUserId }) {
+        const { error } = await this.supabase
+            .from("division_players")
+            .upsert(
+                {
+                    division_id: divisionId,
+                    discord_user_id: discordUserId,
+                    seed_avg: null,
+                    seed_rank: null,
+                },
+                { onConflict: "division_id,discord_user_id" }
+            );
+
+        if (error) throw error;
+    }
+
+    /**
      * List divisions with their players for a season.
      * @param {string|number} seasonId
      * @returns {Promise<Array.<{ division: {id: number, name: string, sort_order: number}, players: Array.<{discord_user_id: string, seed_avg: (number|null), seed_rank: (number|null)}> }>>}
