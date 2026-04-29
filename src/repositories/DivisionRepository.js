@@ -234,8 +234,8 @@ export class DivisionRepository {
                 {
                     division_id: divisionId,
                     discord_user_id: discordUserId,
-                    seed_avg: null,
-                    seed_rank: null,
+                    seed_avg: 0,
+                    seed_rank: 0,
                 },
                 { onConflict: "division_id,discord_user_id" }
             );
