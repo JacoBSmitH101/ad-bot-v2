@@ -421,8 +421,7 @@ export class MatchRepository {
     }) {
         const now = new Date().toISOString();
 
-        const applyFilters = (q) => {
-            q = q.eq("season_id", seasonId).eq("division_id", divisionId);
+        const applyModeFilters = (q) => {
             if (mode === "future_only") {
                 q = q
                     .gte("week", effectiveWeek)
@@ -431,21 +430,27 @@ export class MatchRepository {
             return q;
         };
 
-        const { data: aData, error: aErr } = await applyFilters(
-            this.supabase.from("matches")
-        )
-            .update({ player_a_id: inDiscordUserId, updated_at: now })
-            .eq("player_a_id", outDiscordUserId)
-            .select("id");
+        const { data: aData, error: aErr } = await applyModeFilters(
+            this.supabase
+                .from("matches")
+                .update({ player_a_id: inDiscordUserId, updated_at: now })
+                .eq("season_id", seasonId)
+                .eq("division_id", divisionId)
+                .eq("player_a_id", outDiscordUserId)
+                .select("id")
+        );
 
         if (aErr) throw aErr;
 
-        const { data: bData, error: bErr } = await applyFilters(
-            this.supabase.from("matches")
-        )
-            .update({ player_b_id: inDiscordUserId, updated_at: now })
-            .eq("player_b_id", outDiscordUserId)
-            .select("id");
+        const { data: bData, error: bErr } = await applyModeFilters(
+            this.supabase
+                .from("matches")
+                .update({ player_b_id: inDiscordUserId, updated_at: now })
+                .eq("season_id", seasonId)
+                .eq("division_id", divisionId)
+                .eq("player_b_id", outDiscordUserId)
+                .select("id")
+        );
 
         if (bErr) throw bErr;
 
