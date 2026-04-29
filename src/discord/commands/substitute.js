@@ -21,8 +21,8 @@ export const data = new SlashCommandBuilder()
     .addStringOption((o) =>
         o
             .setName("division")
-            .setDescription("Division name (e.g. Div 1)")
-            .setRequired(true)
+            .setDescription("Division name (e.g. Div 1). If omitted, will auto-detect from the outgoing player.")
+            .setRequired(false)
     )
     .addStringOption((o) =>
         o
@@ -50,7 +50,7 @@ export const data = new SlashCommandBuilder()
 export async function execute(interaction) {
     const outUser = interaction.options.getUser("out", true);
     const inUser = interaction.options.getUser("in", true);
-    const divisionName = interaction.options.getString("division", true);
+    const divisionName = interaction.options.getString("division");
     const mode = interaction.options.getString("mode") ?? "full_replace";
     const effectiveWeek = interaction.options.getInteger("effective_week");
     const note = interaction.options.getString("note");
@@ -60,7 +60,7 @@ export async function execute(interaction) {
 
         const res = await interaction.client.services.substitutions.substitute({
             guildId: interaction.guildId,
-            divisionName,
+            divisionName: divisionName ?? null,
             outDiscordUserId: outUser.id,
             inDiscordUserId: inUser.id,
             mode: mode === "future_only" ? "future_only" : "full_replace",
@@ -82,7 +82,7 @@ export async function execute(interaction) {
         await interaction.editReply({
             content:
                 `✅ Substitution recorded.\n` +
-                `Division: **${divisionName}**\n` +
+                `Division: **${res.division?.name ?? divisionName ?? "?"}**\n` +
                 `Out: <@${outUser.id}>\n` +
                 `In: <@${inUser.id}>\n` +
                 `Mode: **${res.substitution.mode}**${extra}\n` +

@@ -158,6 +158,33 @@ export class DivisionRepository {
     }
 
     /**
+     * Find which division a player is assigned to for a given season.
+     * Returns the first match if somehow assigned multiple times.
+     * @param {{ seasonId: string|number, discordUserId: string }} params
+     * @returns {Promise<({id: any, name: string, sort_order?: number}|null)>}
+     */
+    async findDivisionForPlayerInSeason({ seasonId, discordUserId }) {
+        const divs = await this.listBySeason(seasonId);
+        if (!divs?.length) return null;
+
+        const divisionIds = divs.map((d) => d.id);
+
+        const { data, error } = await this.supabase
+            .from("division_players")
+            .select("division_id")
+            .in("division_id", divisionIds)
+            .eq("discord_user_id", discordUserId)
+            .limit(1)
+            .maybeSingle();
+
+        if (error) throw error;
+        if (!data?.division_id) return null;
+
+        const byId = new Map(divs.map((d) => [String(d.id), d]));
+        return byId.get(String(data.division_id)) ?? null;
+    }
+
+    /**
      * Replace one player with another within a single division roster.
      * @param {{ divisionId: string|number, outDiscordUserId: string, inDiscordUserId: string }} params
      * @returns {Promise<number>} number of rows updated
