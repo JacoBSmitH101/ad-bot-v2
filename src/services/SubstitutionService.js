@@ -29,7 +29,7 @@ export class SubstitutionService {
      * Substitute a player in a division.
      * @param {{
      *   guildId: string,
-     *   divisionName: string,
+     *   divisionName: (string|null),
      *   outDiscordUserId: string,
      *   inDiscordUserId: string,
      *   mode: ('full_replace'|'future_only'),
@@ -59,15 +59,29 @@ export class SubstitutionService {
             );
         }
 
-        const division = await this.divisions.getBySeasonAndName(
-            season.id,
-            divisionName
-        );
-        if (!division) {
-            throw new DomainError(
-                "BAD_DIVISION",
-                `Division not found: ${divisionName}`
+        let division = null;
+        if (divisionName) {
+            division = await this.divisions.getBySeasonAndName(
+                season.id,
+                divisionName
             );
+            if (!division) {
+                throw new DomainError(
+                    "BAD_DIVISION",
+                    `Division not found: ${divisionName}`
+                );
+            }
+        } else {
+            division = await this.divisions.findDivisionForPlayerInSeason({
+                seasonId: season.id,
+                discordUserId: outDiscordUserId,
+            });
+            if (!division) {
+                throw new DomainError(
+                    "NOT_IN_DIVISION",
+                    "Outgoing player is not assigned to any division in the current season."
+                );
+            }
         }
 
         // Guard against swapping into an existing roster slot (would create self-matches / duplicates).
@@ -76,9 +90,18 @@ export class SubstitutionService {
             (r) => r.discord_user_id === outDiscordUserId
         );
         if (!outInRoster) {
+            const actual = await this.divisions
+                .findDivisionForPlayerInSeason({
+                    seasonId: season.id,
+                    discordUserId: outDiscordUserId,
+                })
+                .catch(() => null);
+
             throw new DomainError(
                 "NOT_IN_DIVISION",
-                "Outgoing player is not in this division."
+                actual?.name
+                    ? `Outgoing player is not in ${division.name}. They are in ${actual.name}.`
+                    : "Outgoing player is not in this division."
             );
         }
         const inAlreadyInRoster = roster.some(
