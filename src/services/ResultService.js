@@ -362,7 +362,7 @@ export class ResultService {
     /**
      * Submit a match result on behalf of two players (admin action).
      * Finds the match between the two players and submits the result.
-     * @param {{ guildId: string, adminDiscordUserId: string, adminDisplayName: string, playerAId: string, playerBId: string, legsA: number, legsB: number, proofUrl: string, autoConfirm: boolean }} params
+     * @param {{ guildId: string, adminDiscordUserId: string, adminDisplayName: string, playerAId: string, playerBId: string, legsA: number, legsB: number, proofUrl: (string|null), autoConfirm: boolean }} params
      * @returns {Promise<{season: Season, match: Match, result: MatchResult}>}
      * @throws {DomainError} If no season, season not active, invalid players, invalid score, no match found, or already reported.
      */

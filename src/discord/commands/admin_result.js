@@ -40,7 +40,12 @@ export const data = new SlashCommandBuilder()
             .setRequired(true)
     )
     .addStringOption((opt) =>
-        opt.setName("url").setDescription("Proof URL").setRequired(true)
+        opt
+            .setName("url")
+            .setDescription(
+                "Autodarts match link (optional; omit for forfeits with no match)"
+            )
+            .setRequired(false)
     )
     .addBooleanOption((opt) =>
         opt
@@ -65,10 +70,10 @@ function validateAutodartsMatchUrl(url) {
 
 /**
  * Execute the /admin-result command.
- * Validates admin permissions, Autodarts URL, submits result on behalf of players, and optionally sends verification notification.
+ * Validates admin permissions, optionally validates Autodarts URL, submits result on behalf of players, and optionally sends verification notification.
  * @param {Object} interaction - Discord ChatInputCommandInteraction object.
  * @returns {Promise<void>}
- * @throws {DomainError} If URL invalid, season not active, no match found, or other validation errors.
+ * @throws {DomainError} If URL invalid (when provided), season not active, no match found, or other validation errors.
  */
 export async function execute(interaction) {
     // Check if user is admin
@@ -90,10 +95,10 @@ export async function execute(interaction) {
     const playerB = interaction.options.getUser("player_b", true);
     const legsA = interaction.options.getInteger("legs_a", true);
     const legsB = interaction.options.getInteger("legs_b", true);
-    const url = interaction.options.getString("url", true);
+    const url = interaction.options.getString("url");
     const autoConfirm = interaction.options.getBoolean("auto_confirm", false) ?? false;
 
-    if (!validateAutodartsMatchUrl(url)) {
+    if (url && !validateAutodartsMatchUrl(url)) {
         await interaction.reply({
             content: "❌ Match URL must be a valid Autodarts match link.",
             flags: MessageFlags.Ephemeral,
@@ -115,7 +120,7 @@ export async function execute(interaction) {
                 playerBId: playerB.id,
                 legsA,
                 legsB,
-                proofUrl: url,
+                proofUrl: url ?? null,
                 autoConfirm,
             });
 
