@@ -124,10 +124,7 @@ export class ScheduleService {
         // This prevents issues where player IDs show instead of names in fixtures/stats
         for (const playerId of playerIds) {
             if (!playerId.startsWith("FAKE_")) {
-                await this.players.upsert({
-                    discordUserId: playerId,
-                    displayName: null,
-                });
+                await this.players.ensureExists({ discordUserId: playerId });
             }
         }
 
