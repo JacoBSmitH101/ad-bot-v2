@@ -401,8 +401,8 @@ export class ResultService {
             discordUserId: adminDiscordUserId,
             displayName: adminDisplayName,
         });
-        await this.players.upsert({ discordUserId: playerAId, displayName: null });
-        await this.players.upsert({ discordUserId: playerBId, displayName: null });
+        await this.players.ensureExists({ discordUserId: playerAId });
+        await this.players.ensureExists({ discordUserId: playerBId });
 
         // find candidate matches between the two players
         const candidates = await this.matches.findOpenMatchesBetweenPlayers({

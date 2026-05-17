@@ -145,11 +145,8 @@ export class SubstitutionService {
             effectiveWeek = null;
         }
 
-        // Ensure the incoming player exists.
-        await this.players.upsert({
-            discordUserId: inDiscordUserId,
-            displayName: null,
-        });
+        // Ensure the incoming player exists (do not overwrite display_name).
+        await this.players.ensureExists({ discordUserId: inDiscordUserId });
 
         if (mode === "full_replace") {
             const confirmedCt =

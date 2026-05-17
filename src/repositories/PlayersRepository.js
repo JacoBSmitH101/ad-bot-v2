@@ -44,6 +44,20 @@ export class PlayersRepository {
     }
 
     /**
+     * Ensure a player row exists without changing an existing display_name.
+     * @param {{ discordUserId: string }} params
+     * @returns {Promise<void>}
+     */
+    async ensureExists({ discordUserId }) {
+        const { error } = await this.supabase.from("players").upsert(
+            { discord_user_id: discordUserId },
+            { onConflict: "discord_user_id", ignoreDuplicates: true }
+        );
+
+        if (error) throw error;
+    }
+
+    /**
      * List players by Discord user IDs.
      * @param {{ discordUserIds: Array.<string> }} params
      * @returns {Promise<Array.<Player>>}
