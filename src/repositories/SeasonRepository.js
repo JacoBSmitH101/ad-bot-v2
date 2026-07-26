@@ -10,7 +10,7 @@
  * @property {string|null} standings_channel_id
  * @property {Object|null} standings_message_ids - JSON map of division:{id} → message id
  * @property {string|null} fixtures_channel_id
- * @property {string|null} fixtures_message_id
+ * @property {string|null} fixtures_message_id - Legacy single ID or serialized division-to-message map
  * @property {number|null} fixtures_week
  * @property {string|null} stats_channel_id
  * @property {string|null} stats_message_id
@@ -304,6 +304,21 @@ export class SeasonRepository {
             .single();
         if (error) throw error;
         return data;
+    }
+
+    /**
+     * Store per-division fixture message IDs in the existing text field.
+     * Using serialized JSON avoids a database migration and remains compatible
+     * with seasons that still contain one legacy message ID.
+     * @param {string|number} seasonId
+     * @param {Object.<string, string>} messageIds
+     * @returns {Promise<Season>}
+     */
+    async setFixturesMessageIds(seasonId, messageIds) {
+        return this.setFixturesMessageId(
+            seasonId,
+            JSON.stringify(messageIds ?? {})
+        );
     }
 
     /**
