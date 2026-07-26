@@ -4,7 +4,7 @@ import { DomainError } from "../../utils/DomainError.js";
 /**
  * Discord slash command: /statspublish
  * Admin-only command to publish stats leaders in the current channel.
- * Creates a message showing top 5 players in various stat categories that can be automatically refreshed when results change.
+ * Creates an image showing the top 5 players in each stat category and refreshes it when results change.
  * @module commands/statspublish
  */
 
@@ -16,7 +16,7 @@ export const data = new SlashCommandBuilder()
 
 /**
  * Execute the /statspublish command.
- * Validates admin permissions and publishes stats leaders embed.
+ * Validates admin permissions and publishes the stats leaders image.
  * @param {Object} interaction - Discord ChatInputCommandInteraction object.
  * @returns {Promise<void>}
  * @throws {DomainError} If no season, invalid state, or bad channel.

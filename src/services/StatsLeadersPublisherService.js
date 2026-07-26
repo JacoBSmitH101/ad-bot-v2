@@ -1,24 +1,8 @@
 import { DomainError } from "../utils/DomainError.js";
-import { EmbedBuilder } from "discord.js";
+import { AttachmentBuilder } from "discord.js";
 import { extractAutodartsMatchId } from "../utils/autodarts.js";
 import { supabase } from "../db/supabase.js";
-
-/**
- * Formats a player ID for display.
- * @private
- * @param {string} id
- * @param {Map<string, string>} [nameById]
- * @returns {string}
- */
-function fmtPlayer(id, nameById) {
-    if (id.startsWith("FAKE_")) return `\`${id}\``;
-    if (nameById?.has(id)) return `\`${nameById.get(id)}\``;
-    return `\`${id}\``;
-}
-
-function medal(i) {
-    return i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : "•";
-}
+import { renderStatsLeadersImage } from "./StatsLeadersImageRenderer.js";
 
 /**
  * Align match stats to find the correct player's stats using legs won.
@@ -255,6 +239,88 @@ export class StatsLeadersPublisherService {
         return aggregated;
     }
 
+    async buildImage({ client, season }) {
+        const allStats = await this.getAllPlayerStats(season.id);
+        const playerIds = [...allStats.keys()];
+        const nameById = new Map();
+
+        if (playerIds.length > 0) {
+            const players = await this.players.listByDiscordIds({
+                discordUserIds: playerIds,
+            });
+            const foundIds = new Set();
+            for (const player of players) {
+                const name =
+                    player.display_name ?? player.discord_user_id;
+                nameById.set(player.discord_user_id, name);
+                foundIds.add(player.discord_user_id);
+            }
+
+            const missingIds = playerIds.filter(
+                (id) => !foundIds.has(id)
+            );
+            for (const missingId of missingIds) {
+                try {
+                    const discordUser = await client.users.fetch(missingId);
+                    const name =
+                        discordUser.displayName ?? discordUser.username;
+                    nameById.set(missingId, name);
+                    await this.players.upsert({
+                        discordUserId: missingId,
+                        displayName: name,
+                    });
+                } catch {
+                    // Fall back to the Discord ID when the user cannot be fetched.
+                }
+            }
+        }
+
+        const leadersFor = (field) =>
+            [...allStats.entries()]
+                .filter(
+                    ([, stats]) =>
+                        stats[field] != null &&
+                        Number.isFinite(Number(stats[field]))
+                )
+                .sort(
+                    ([, a], [, b]) =>
+                        Number(b[field]) - Number(a[field])
+                )
+                .slice(0, 5)
+                .map(([playerId, stats]) => ({
+                    name: nameById.get(playerId) ?? playerId,
+                    value: Number(stats[field]),
+                    matchCount: Number(stats.matchCount ?? 0),
+                }));
+
+        const matchesWithStats = Math.round(
+            [...allStats.values()].reduce(
+                (sum, stats) => sum + Number(stats.matchCount ?? 0),
+                0
+            ) / 2
+        );
+        return renderStatsLeadersImage({
+            seasonName: season.name,
+            qualifiedPlayers: allStats.size,
+            matchesWithStats,
+            average: leadersFor("average"),
+            checkoutPercent: leadersFor("checkoutPercent"),
+            highestCheckout: leadersFor("highestCheckout"),
+            first9Average: leadersFor("first9Average"),
+        });
+    }
+
+    createAttachment(image, season) {
+        const safeSeasonName = String(season.name)
+            .toLowerCase()
+            .replace(/[^a-z0-9]+/g, "-")
+            .replace(/^-|-$/g, "");
+        return new AttachmentBuilder(image, {
+            name: `stat-leaders-${safeSeasonName || season.id}.png`,
+            description: `${season.name} stat leaders`,
+        });
+    }
+
     /**
      * Create (or recreate) stats leaders message in a channel and store its message ID.
      * @param {{ client: Client, guildId: string, channelId: string }} params
@@ -282,155 +348,9 @@ export class StatsLeadersPublisherService {
             );
         }
 
-        // Get all player stats
-        const allStats = await this.getAllPlayerStats(season.id);
-
-        // Fetch player names
-        const playerIds = [...allStats.keys()];
-        const nameById = new Map();
-        if (playerIds.length > 0) {
-            const players = await this.players.listByDiscordIds({
-                discordUserIds: playerIds,
-            });
-            const foundIds = new Set();
-            for (const p of players) {
-                const name = p.display_name ?? p.discord_user_id;
-                nameById.set(p.discord_user_id, name);
-                foundIds.add(p.discord_user_id);
-            }
-
-            // Fallback: try to fetch missing players from Discord API
-            // This handles edge cases where players exist in matches but not in the players table
-            const missingIds = playerIds.filter((id) => !foundIds.has(id));
-            if (missingIds.length > 0 && client) {
-                for (const missingId of missingIds) {
-                    try {
-                        const discordUser = await client.users.fetch(missingId);
-                        const name = discordUser.displayName ?? discordUser.username;
-                        nameById.set(missingId, name);
-                        // Also upsert to players table for future lookups
-                        await this.players.upsert({
-                            discordUserId: missingId,
-                            displayName: name,
-                        });
-                    } catch (err) {
-                        // User not found or other error - will fall back to showing ID
-                    }
-                }
-            }
-        }
-
-        // Build top 5 lists for each category
-        const topAverage = [...allStats.entries()]
-            .filter(([_, stats]) => stats.average != null)
-            .sort(([_, a], [__, b]) => (b.average ?? 0) - (a.average ?? 0))
-            .slice(0, 5);
-
-        const topCheckoutPercent = [...allStats.entries()]
-            .filter(([_, stats]) => stats.checkoutPercent != null)
-            .sort(
-                ([_, a], [__, b]) =>
-                    (b.checkoutPercent ?? 0) - (a.checkoutPercent ?? 0)
-            )
-            .slice(0, 5);
-
-        const topHighestCheckout = [...allStats.entries()]
-            .filter(([_, stats]) => stats.highestCheckout != null)
-            .sort(
-                ([_, a], [__, b]) =>
-                    (b.highestCheckout ?? 0) - (a.highestCheckout ?? 0)
-            )
-            .slice(0, 5);
-
-        const topFirst9Average = [...allStats.entries()]
-            .filter(([_, stats]) => stats.first9Average != null)
-            .sort(
-                ([_, a], [__, b]) =>
-                    (b.first9Average ?? 0) - (a.first9Average ?? 0)
-            )
-            .slice(0, 5);
-
-        // Build embed
-        const embed = new EmbedBuilder()
-            .setTitle(`📊 Stat Leaders — ${season.name}`)
-            .setDescription("All stats shown are **running averages** across all matches played.")
-            .setTimestamp();
-
-        // Average field
-        if (topAverage.length > 0) {
-            const avgLines = topAverage.map(([playerId, stats], idx) => {
-                const positionText = idx >= 3 ? `**${idx + 1}.** ` : "";
-                return `${medal(idx)} ${positionText}${fmtPlayer(
-                    playerId,
-                    nameById
-                )} — **${stats.average.toFixed(1)}**`;
-            });
-            embed.addFields({
-                name: "🎯 3-Dart Average",
-                value: avgLines.join("\n") || "_No data._",
-                inline: false,
-            });
-        }
-
-        // Checkout % field
-        if (topCheckoutPercent.length > 0) {
-            const coLines = topCheckoutPercent.map(([playerId, stats], idx) => {
-                const positionText = idx >= 3 ? `**${idx + 1}.** ` : "";
-                return `${medal(idx)} ${positionText}${fmtPlayer(
-                    playerId,
-                    nameById
-                )} — **${stats.checkoutPercent.toFixed(1)}%**`;
-            });
-            embed.addFields({
-                name: "✅ Checkout %",
-                value: coLines.join("\n") || "_No data._",
-                inline: false,
-            });
-        }
-
-        // Highest Checkout field
-        if (topHighestCheckout.length > 0) {
-            const hcLines = topHighestCheckout.map(([playerId, stats], idx) => {
-                const positionText = idx >= 3 ? `**${idx + 1}.** ` : "";
-                return `${medal(idx)} ${positionText}${fmtPlayer(
-                    playerId,
-                    nameById
-                )} — **${stats.highestCheckout}**`;
-            });
-            embed.addFields({
-                name: "💎 Highest Checkout",
-                value: hcLines.join("\n") || "_No data._",
-                inline: false,
-            });
-        }
-
-        // First 9 Average field
-        if (topFirst9Average.length > 0) {
-            const f9Lines = topFirst9Average.map(([playerId, stats], idx) => {
-                const positionText = idx >= 3 ? `**${idx + 1}.** ` : "";
-                return `${medal(idx)} ${positionText}${fmtPlayer(
-                    playerId,
-                    nameById
-                )} — **${stats.first9Average.toFixed(1)}**`;
-            });
-            embed.addFields({
-                name: "🎲 First 9 Average",
-                value: f9Lines.join("\n") || "_No data._",
-                inline: false,
-            });
-        }
-
-        // If no stats at all, show message
-        if (
-            topAverage.length === 0 &&
-            topCheckoutPercent.length === 0 &&
-            topHighestCheckout.length === 0 &&
-            topFirst9Average.length === 0
-        ) {
-            embed.setDescription("_No stats available yet._");
-        }
-
-        const msg = await channel.send({ embeds: [embed] });
+        const image = await this.buildImage({ client, season });
+        const file = this.createAttachment(image, season);
+        const msg = await channel.send({ files: [file] });
 
         await this.seasons.setStatsChannel(season.id, channelId);
         await this.seasons.setStatsMessageId(season.id, msg.id);
@@ -467,155 +387,15 @@ export class StatsLeadersPublisherService {
             .catch(() => null);
         if (!msg) return { updated: false, skipped: true };
 
-        // Get all player stats
-        const allStats = await this.getAllPlayerStats(season.id);
-
-        // Fetch player names
-        const playerIds = [...allStats.keys()];
-        const nameById = new Map();
-        if (playerIds.length > 0) {
-            const players = await this.players.listByDiscordIds({
-                discordUserIds: playerIds,
-            });
-            const foundIds = new Set();
-            for (const p of players) {
-                const name = p.display_name ?? p.discord_user_id;
-                nameById.set(p.discord_user_id, name);
-                foundIds.add(p.discord_user_id);
-            }
-
-            // Fallback: try to fetch missing players from Discord API
-            // This handles edge cases where players exist in matches but not in the players table
-            const missingIds = playerIds.filter((id) => !foundIds.has(id));
-            if (missingIds.length > 0 && client) {
-                for (const missingId of missingIds) {
-                    try {
-                        const discordUser = await client.users.fetch(missingId);
-                        const name = discordUser.displayName ?? discordUser.username;
-                        nameById.set(missingId, name);
-                        // Also upsert to players table for future lookups
-                        await this.players.upsert({
-                            discordUserId: missingId,
-                            displayName: name,
-                        });
-                    } catch (err) {
-                        // User not found or other error - will fall back to showing ID
-                    }
-                }
-            }
-        }
-
-        // Build top 5 lists for each category
-        const topAverage = [...allStats.entries()]
-            .filter(([_, stats]) => stats.average != null)
-            .sort(([_, a], [__, b]) => (b.average ?? 0) - (a.average ?? 0))
-            .slice(0, 5);
-
-        const topCheckoutPercent = [...allStats.entries()]
-            .filter(([_, stats]) => stats.checkoutPercent != null)
-            .sort(
-                ([_, a], [__, b]) =>
-                    (b.checkoutPercent ?? 0) - (a.checkoutPercent ?? 0)
-            )
-            .slice(0, 5);
-
-        const topHighestCheckout = [...allStats.entries()]
-            .filter(([_, stats]) => stats.highestCheckout != null)
-            .sort(
-                ([_, a], [__, b]) =>
-                    (b.highestCheckout ?? 0) - (a.highestCheckout ?? 0)
-            )
-            .slice(0, 5);
-
-        const topFirst9Average = [...allStats.entries()]
-            .filter(([_, stats]) => stats.first9Average != null)
-            .sort(
-                ([_, a], [__, b]) =>
-                    (b.first9Average ?? 0) - (a.first9Average ?? 0)
-            )
-            .slice(0, 5);
-
-        // Build embed
-        const embed = new EmbedBuilder()
-            .setTitle(`📊 Stat Leaders — ${season.name}`)
-            .setDescription("All stats shown are **running averages** across all matches played.")
-            .setTimestamp();
-
-        // Average field
-        if (topAverage.length > 0) {
-            const avgLines = topAverage.map(([playerId, stats], idx) => {
-                const positionText = idx >= 3 ? `**${idx + 1}.** ` : "";
-                return `${medal(idx)} ${positionText}${fmtPlayer(
-                    playerId,
-                    nameById
-                )} — **${stats.average.toFixed(1)}**`;
-            });
-            embed.addFields({
-                name: "🎯 3-Dart Average",
-                value: avgLines.join("\n") || "_No data._",
-                inline: false,
-            });
-        }
-
-        // Checkout % field
-        if (topCheckoutPercent.length > 0) {
-            const coLines = topCheckoutPercent.map(([playerId, stats], idx) => {
-                const positionText = idx >= 3 ? `**${idx + 1}.** ` : "";
-                return `${medal(idx)} ${positionText}${fmtPlayer(
-                    playerId,
-                    nameById
-                )} — **${stats.checkoutPercent.toFixed(1)}%**`;
-            });
-            embed.addFields({
-                name: "✅ Checkout %",
-                value: coLines.join("\n") || "_No data._",
-                inline: false,
-            });
-        }
-
-        // Highest Checkout field
-        if (topHighestCheckout.length > 0) {
-            const hcLines = topHighestCheckout.map(([playerId, stats], idx) => {
-                const positionText = idx >= 3 ? `**${idx + 1}.** ` : "";
-                return `${medal(idx)} ${positionText}${fmtPlayer(
-                    playerId,
-                    nameById
-                )} — **${stats.highestCheckout}**`;
-            });
-            embed.addFields({
-                name: "💎 Highest Checkout",
-                value: hcLines.join("\n") || "_No data._",
-                inline: false,
-            });
-        }
-
-        // First 9 Average field
-        if (topFirst9Average.length > 0) {
-            const f9Lines = topFirst9Average.map(([playerId, stats], idx) => {
-                const positionText = idx >= 3 ? `**${idx + 1}.** ` : "";
-                return `${medal(idx)} ${positionText}${fmtPlayer(
-                    playerId,
-                    nameById
-                )} — **${stats.first9Average.toFixed(1)}**`;
-            });
-            embed.addFields({
-                name: "🎲 First 9 Average",
-                value: f9Lines.join("\n") || "_No data._",
-                inline: false,
-            });
-        }
-
-        // If no stats at all, show message
-        if (
-            topAverage.length === 0 &&
-            topCheckoutPercent.length === 0 &&
-            topHighestCheckout.length === 0 &&
-            topFirst9Average.length === 0
-        ) {
-            embed.setDescription("_No stats available yet._");
-        }
-
-        await msg.edit({ embeds: [embed] });
+        const image = await this.buildImage({ client, season });
+        const file = this.createAttachment(image, season);
+        await msg.edit({
+            content: "",
+            embeds: [],
+            components: [],
+            attachments: [],
+            files: [file],
+        });
 
         return { updated: true, skipped: false };
     }
