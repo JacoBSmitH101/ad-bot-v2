@@ -41,6 +41,16 @@ export class StandingsService {
      */
     async getStandingsForCurrentSeason({ guildId }) {
         const season = await this.seasons.getCurrentForGuild(guildId);
+        return this.getStandingsForSeason({ season });
+    }
+
+    /**
+     * Get standings for a supplied active or closed season.
+     * @param {{ season: Season|null }} params
+     * @returns {Promise<{season: Season, divisions: Array.<{division: Division, standings: Array.<StandingsRow>}>}>}
+     * @throws {DomainError} If no season, invalid season state, or no divisions found.
+     */
+    async getStandingsForSeason({ season }) {
         if (!season) throw new DomainError("NO_SEASON", "No season found.");
 
         // Allow standings in active OR closed (useful)

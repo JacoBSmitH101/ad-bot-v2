@@ -107,6 +107,26 @@ export class SeasonRepository {
     }
 
     /**
+     * Get the most recent season that can provide standings.
+     * This is useful while a newer season is still in draft or signups.
+     * @param {string} guildId
+     * @returns {Promise<(Season|null)>}
+     */
+    async getLatestStandingsSeasonForGuild(guildId) {
+        const { data, error } = await this.supabase
+            .from("seasons")
+            .select("*")
+            .eq("guild_id", guildId)
+            .in("status", ["active", "closed"])
+            .order("created_at", { ascending: false })
+            .limit(1)
+            .maybeSingle();
+
+        if (error) throw error;
+        return data ?? null;
+    }
+
+    /**
      * Update the status of a season.
      * @param {string|number} seasonId
      * @param {string} status New status value.

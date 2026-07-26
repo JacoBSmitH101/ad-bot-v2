@@ -49,10 +49,33 @@ export async function execute(interaction) {
     await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
     try {
-        const result =
-            await interaction.client.services.standings.getStandingsForCurrentSeason(
-                { guildId: interaction.guildId }
+        const currentSeason =
+            await interaction.client.repos.seasons.getCurrentForGuild(
+                interaction.guildId
             );
+        const currentHasStandings = ["active", "closed"].includes(
+            currentSeason?.status
+        );
+        const previewSeason = currentHasStandings
+            ? currentSeason
+            : await interaction.client.repos.seasons.getLatestStandingsSeasonForGuild(
+                  interaction.guildId
+              );
+
+        if (!previewSeason) {
+            await interaction.editReply(
+                "No active or completed season is available to preview."
+            );
+            return;
+        }
+
+        const result =
+            await interaction.client.services.standings.getStandingsForSeason({
+                season: previewSeason,
+            });
+        const showingPreviousSeason =
+            currentSeason &&
+            String(currentSeason.id) !== String(previewSeason.id);
         const requestedDivision = interaction.options.getInteger("division");
         const selected = requestedDivision
             ? result.divisions.filter(
@@ -64,7 +87,7 @@ export async function execute(interaction) {
 
         if (selected.length === 0) {
             await interaction.editReply(
-                `No Division ${requestedDivision} exists in the current season.`
+                `No Division ${requestedDivision} exists in ${result.season.name}.`
             );
             return;
         }
@@ -100,8 +123,9 @@ export async function execute(interaction) {
         }
 
         await interaction.editReply({
-            content:
-                "Image preview only — this has not changed the official published standings.",
+            content: showingPreviousSeason
+                ? `Showing **${result.season.name}** because **${currentSeason.name}** has not started yet. Image preview only — this has not changed the official published standings.`
+                : `Showing **${result.season.name}**. Image preview only — this has not changed the official published standings.`,
             files,
         });
     } catch (error) {
