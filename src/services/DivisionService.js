@@ -1,5 +1,6 @@
 import { DomainError } from "../utils/DomainError.js";
 import { chunkDivisions } from "../utils/chunkDivisions.js";
+import { suggestDivisionGroups } from "../utils/suggestDivisionGroups.js";
 
 /**
  * Service for managing division creation and player assignment.
@@ -8,15 +9,19 @@ import { chunkDivisions } from "../utils/chunkDivisions.js";
  */
 export class DivisionService {
     /**
-     * @param {{ seasons: SeasonRepository, signups: SignupRepository, divisions: DivisionRepository }} deps
+     * @param {{ seasons: SeasonRepository, signups: SignupRepository, divisions: DivisionRepository, divisionPlayers: DivisionPlayersRepository, matches: MatchRepository }} deps
      * @param {SeasonRepository} deps.seasons Season repository instance.
      * @param {SignupRepository} deps.signups Signup repository instance.
      * @param {DivisionRepository} deps.divisions Division repository instance.
+     * @param {DivisionPlayersRepository} deps.divisionPlayers Division players repository instance.
+     * @param {MatchRepository} deps.matches Match repository instance.
      */
-    constructor({ seasons, signups, divisions }) {
+    constructor({ seasons, signups, divisions, divisionPlayers, matches }) {
         this.seasons = seasons;
         this.signups = signups;
         this.divisions = divisions;
+        this.divisionPlayers = divisionPlayers;
+        this.matches = matches;
         this.MIN_PER_DIVISION = 7;
         this.MAX_DIVISIONS = 10;
     }
@@ -58,6 +63,132 @@ export class DivisionService {
     _maxDivisionsAllowed(playerCount) {
         // Enforce min players per division, but never allow 0 divisions
         return Math.max(1, Math.floor(playerCount / this.MIN_PER_DIVISION));
+    }
+
+    /**
+     * Calculate a final table using the same confirmed-result rules as the site.
+     * @private
+     * @param {{ seasonId: string|number, division: Division }} input
+     * @returns {Promise<Array.<{discordUserId: string}>>}
+     */
+    async _getFinalTable({ seasonId, division }) {
+        const [roster, confirmed] = await Promise.all([
+            this.divisionPlayers.listPlayersForDivision(division.id),
+            this.matches.listConfirmedWithResultsForDivision({
+                seasonId,
+                divisionId: division.id,
+            }),
+        ]);
+        const table = new Map();
+
+        roster.forEach((player) => {
+            table.set(player.discord_user_id, {
+                discordUserId: player.discord_user_id,
+                name: player.display_name ?? player.discord_user_id,
+                legsFor: 0,
+                legsAgainst: 0,
+                points: 0,
+            });
+        });
+
+        confirmed.forEach((match) => {
+            const result = Array.isArray(match.match_results)
+                ? match.match_results[0]
+                : match.match_results;
+            const playerA = table.get(match.player_a_id);
+            const playerB = table.get(match.player_b_id);
+            if (!result || !playerA || !playerB) return;
+
+            const legsA = Number(result.legs_a);
+            const legsB = Number(result.legs_b);
+            playerA.legsFor += legsA;
+            playerA.legsAgainst += legsB;
+            playerB.legsFor += legsB;
+            playerB.legsAgainst += legsA;
+            playerA.points += legsA + (legsA > legsB ? 2 : 0);
+            playerB.points += legsB + (legsB > legsA ? 2 : 0);
+        });
+
+        return [...table.values()]
+            .map((row) => ({
+                ...row,
+                legDiff: row.legsFor - row.legsAgainst,
+            }))
+            .sort(
+                (a, b) =>
+                    b.points - a.points ||
+                    b.legDiff - a.legDiff ||
+                    b.legsFor - a.legsFor ||
+                    String(a.name).localeCompare(String(b.name))
+            );
+    }
+
+    /**
+     * Build automatic groups using last season when its division count matches.
+     * Falls back to average-only grouping when there is no comparable season.
+     * @private
+     * @param {{ guildId: string, season: Season, signups: Array.<Signup>, divisionCount: number }} input
+     * @returns {Promise<Array.<Array.<Signup>>>}
+     */
+    async _buildAutoGroups({ guildId, season, signups, divisionCount }) {
+        const averageGroups = () => {
+            const sorted = [...signups].sort(
+                (a, b) => Number(b.avg_3dart) - Number(a.avg_3dart)
+            );
+            return chunkDivisions(sorted, divisionCount);
+        };
+
+        const previousSeason = await this.seasons.getPreviousForGuild(
+            guildId,
+            season.created_at
+        );
+        if (!previousSeason) return averageGroups();
+
+        const previousDivisions = await this.divisions.listBySeason(
+            previousSeason.id
+        );
+        if (previousDivisions.length !== divisionCount) return averageGroups();
+
+        const [previousSignups, finalTables] = await Promise.all([
+            this.signups.listBySeason(previousSeason.id),
+            Promise.all(
+                previousDivisions.map((division) =>
+                    this._getFinalTable({
+                        seasonId: previousSeason.id,
+                        division,
+                    })
+                )
+            ),
+        ]);
+        const placementsByUser = new Map();
+
+        finalTables.forEach((table, divisionIndex) => {
+            const division = previousDivisions[divisionIndex];
+            table.forEach((row, rankIndex) => {
+                const placements =
+                    placementsByUser.get(row.discordUserId) ?? [];
+                placements.push({
+                    divisionName: division.name,
+                    divisionSortOrder: division.sort_order,
+                    rank: rankIndex + 1,
+                    of: table.length,
+                });
+                placementsByUser.set(row.discordUserId, placements);
+            });
+        });
+
+        const signupsInSiteOrder = [...signups].sort((a, b) =>
+            String(a.created_at).localeCompare(String(b.created_at))
+        );
+
+        return suggestDivisionGroups({
+            signups: signupsInSiteOrder,
+            previousSignupIds: new Set(
+                previousSignups.map((signup) => signup.discord_user_id)
+            ),
+            previousDivisions,
+            placementsByUser,
+        });
     }
 
     /**
@@ -152,14 +283,15 @@ export class DivisionService {
             );
         }
 
-        // Ensure high → low
-        signups.sort((a, b) => Number(b.avg_3dart) - Number(a.avg_3dart));
+        const groups = await this._buildAutoGroups({
+            guildId,
+            season,
+            signups,
+            divisionCount: divs.length,
+        });
 
-        // Clear old assignments so this command is safe to rerun
+        // Clear old assignments only after the replacement groups are ready.
         await this.divisions.clearPlayersForSeason(season.id);
-
-        // Group into division chunks (Div1 top chunk, Div2 next...)
-        const groups = chunkDivisions(signups, divs.length);
 
         // Write division_players rows
         const rows = [];
@@ -280,10 +412,12 @@ export class DivisionService {
             throw new DomainError("NO_SIGNUPS", "No signups yet.");
         }
 
-        // Ensure high → low
-        signups.sort((a, b) => Number(b.avg_3dart) - Number(a.avg_3dart));
-
-        const groups = chunkDivisions(signups, count);
+        const groups = await this._buildAutoGroups({
+            guildId,
+            season,
+            signups,
+            divisionCount: count,
+        });
         const maxAllowed = this._maxDivisionsAllowed(playerCount);
         const warnings = [];
 

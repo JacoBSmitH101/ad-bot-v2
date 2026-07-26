@@ -87,6 +87,26 @@ export class SeasonRepository {
     }
 
     /**
+     * Get the season immediately before another season for a guild.
+     * @param {string} guildId
+     * @param {string} beforeCreatedAt Current season's created_at value.
+     * @returns {Promise<(Season|null)>}
+     */
+    async getPreviousForGuild(guildId, beforeCreatedAt) {
+        const { data, error } = await this.supabase
+            .from("seasons")
+            .select("*")
+            .eq("guild_id", guildId)
+            .lt("created_at", beforeCreatedAt)
+            .order("created_at", { ascending: false })
+            .limit(1)
+            .maybeSingle();
+
+        if (error) throw error;
+        return data ?? null;
+    }
+
+    /**
      * Update the status of a season.
      * @param {string|number} seasonId
      * @param {string} status New status value.
