@@ -361,6 +361,7 @@ export class StandingsPublisherService {
         let beforeDivisionStandings = null;
         let afterDivisionStandings = null;
         let movementText = null;
+        const rankMovements = new Map();
 
         if (
             context?.divisionId &&
@@ -372,6 +373,15 @@ export class StandingsPublisherService {
 
             const beforeMap = buildRankMap(beforeDivisionStandings);
             const afterMap = buildRankMap(afterDivisionStandings);
+
+            for (const [playerId, afterRank] of afterMap.entries()) {
+                const beforeRank = beforeMap.get(playerId);
+                if (!beforeRank) continue;
+                const delta = afterRank - beforeRank;
+                if (delta !== 0) {
+                    rankMovements.set(String(playerId), delta);
+                }
+            }
 
             const ids = [context.playerAId, context.playerBId].filter(Boolean);
 
@@ -398,7 +408,10 @@ export class StandingsPublisherService {
 
             let lastUpdateText = null;
 
-            if (context?.divisionId && d.division.id === context.divisionId) {
+            if (
+                context?.divisionId &&
+                String(d.division.id) === String(context.divisionId)
+            ) {
                 // Score line (from stored match result if provided)
                 const score = context.scoreText
                     ? ` — ${context.scoreText}`
@@ -436,6 +449,11 @@ export class StandingsPublisherService {
                 divisionName: d.division.name,
                 standings: d.standings,
                 playerAverages,
+                rankMovements:
+                    context?.divisionId &&
+                    String(d.division.id) === String(context.divisionId)
+                        ? rankMovements
+                        : new Map(),
                 isTopDivision: divisionIndex === 0,
                 isBottomDivision:
                     divisionIndex === res.divisions.length - 1,

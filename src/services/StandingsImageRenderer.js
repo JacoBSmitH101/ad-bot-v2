@@ -65,6 +65,30 @@ function rowPalette(index, rowCount, { isTopDivision, isBottomDivision }) {
     };
 }
 
+function movementBadge(delta, baseline) {
+    const movement = Number(delta);
+    if (!Number.isFinite(movement) || movement === 0) return "";
+
+    const movedUp = movement < 0;
+    const colour = movedUp ? "#34d399" : "#fb7185";
+    const textColour = movedUp ? "#a7f3d0" : "#fecdd3";
+    const label = `${movedUp ? "▲" : "▼"} ${Math.abs(movement)}`;
+
+    return `
+        <rect x="596" y="${baseline - 25}" width="72" height="34" rx="17" fill="${colour}" fill-opacity="0.10" stroke="${colour}" stroke-opacity="0.28" />
+        ${text({
+            x: 632,
+            y: baseline - 2,
+            value: label,
+            size: 15,
+            weight: 750,
+            fill: textColour,
+            anchor: "middle",
+            family: "display",
+        })}
+    `;
+}
+
 function text({
     x,
     y,
@@ -92,6 +116,7 @@ function text({
  *   divisionName: string,
  *   standings: Array<object>,
  *   playerAverages?: Map<string, number>,
+ *   rankMovements?: Map<string, number>,
  *   isTopDivision?: boolean,
  *   isBottomDivision?: boolean
  * }} params
@@ -102,6 +127,7 @@ export async function renderStandingsImage({
     divisionName,
     standings,
     playerAverages = new Map(),
+    rankMovements = new Map(),
     isTopDivision = false,
     isBottomDivision = false,
 }) {
@@ -138,6 +164,9 @@ export async function renderStandingsImage({
             const average = playerAverages.get(row.discordUserId);
             const averageText = Number.isFinite(average) ? Number(average).toFixed(1) : "—";
             const playerName = truncate(row.name || row.discordUserId);
+            const rankMovement =
+                rankMovements.get(String(row.discordUserId)) ??
+                rankMovements.get(row.discordUserId);
 
             return `
                 <rect x="${TABLE_X}" y="${y + 3}" width="${TABLE_WIDTH}" height="${
@@ -164,6 +193,7 @@ export async function renderStandingsImage({
                     weight: 650,
                     fill: "#f1f5f9",
                 })}
+                ${movementBadge(rankMovement, baseline)}
                 ${text({ x: 700, y: baseline, value: number(row.played), anchor: "end" })}
                 ${text({ x: 770, y: baseline, value: number(row.wins), anchor: "end" })}
                 ${text({ x: 840, y: baseline, value: number(row.losses), anchor: "end" })}
