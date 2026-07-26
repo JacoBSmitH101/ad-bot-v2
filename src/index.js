@@ -107,6 +107,8 @@ client.services = {
     }),
     divisions: new DivisionService({
         divisions: client.repos.divisions,
+        divisionPlayers: client.repos.divisionPlayers,
+        matches: client.repos.matches,
         seasons: client.repos.seasons,
         signups: client.repos.signups,
     }),
