@@ -7,40 +7,6 @@ const CARD_Y = 224;
 const ROW_HEIGHT = 92;
 const FOOTER_HEIGHT = 72;
 
-export async function combineFixtureImages(images) {
-    if (!Array.isArray(images) || images.length === 0) {
-        throw new Error("At least one fixture image is required.");
-    }
-    if (images.length === 1) return images[0];
-
-    const gap = 16;
-    const metadata = await Promise.all(
-        images.map((image) => sharp(image).metadata())
-    );
-    const width = Math.max(...metadata.map((item) => item.width ?? WIDTH));
-    const height =
-        metadata.reduce((sum, item) => sum + (item.height ?? 0), 0) +
-        gap * (images.length - 1);
-    let top = 0;
-    const composites = images.map((input, index) => {
-        const entry = { input, top, left: 0 };
-        top += (metadata[index].height ?? 0) + gap;
-        return entry;
-    });
-
-    return sharp({
-        create: {
-            width,
-            height,
-            channels: 4,
-            background: "#070c15",
-        },
-    })
-        .composite(composites)
-        .png({ compressionLevel: 9 })
-        .toBuffer();
-}
-
 function escapeXml(value) {
     return String(value ?? "")
         .replaceAll("&", "&amp;")

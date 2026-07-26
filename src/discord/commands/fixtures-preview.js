@@ -4,10 +4,7 @@ import {
     PermissionFlagsBits,
     SlashCommandBuilder,
 } from "discord.js";
-import {
-    combineFixtureImages,
-    renderFixturesImage,
-} from "../../services/FixturesImageRenderer.js";
+import { renderFixturesImage } from "../../services/FixturesImageRenderer.js";
 
 /**
  * Discord slash command: /fixtures-preview
@@ -139,7 +136,7 @@ export async function execute(interaction) {
             ])
         );
 
-        const divisionImages = [];
+        const files = [];
         for (const division of selectedDivisions.slice(0, 10)) {
             const divisionMatches = matches
                 .filter(
@@ -165,14 +162,20 @@ export async function execute(interaction) {
                 overdueMatches: divisionOverdueMatches,
                 nameById,
             });
-            divisionImages.push(png);
+            const safeDivisionName = String(division.name)
+                .toLowerCase()
+                .replace(/[^a-z0-9]+/g, "-")
+                .replace(/^-|-$/g, "");
+            files.push(
+                new AttachmentBuilder(png, {
+                    name: `fixtures-week-${week}-${
+                        safeDivisionName || division.sort_order
+                    }.png`,
+                    description: `${previewSeason.name} ${division.name} Week ${week} fixtures`,
+                })
+            );
         }
 
-        const combinedPng = await combineFixtureImages(divisionImages);
-        const file = new AttachmentBuilder(combinedPng, {
-            name: `fixtures-week-${week}.png`,
-            description: `${previewSeason.name} Week ${week} fixtures`,
-        });
         const showingPreviousSeason =
             currentSeason &&
             String(currentSeason.id) !== String(previewSeason.id);
@@ -182,8 +185,12 @@ export async function execute(interaction) {
 
         await interaction.editReply({
             content: previewMessage,
-            files: [file],
+            files: [files[0]],
         });
+
+        for (const file of files.slice(1)) {
+            await interaction.followUp({ files: [file] });
+        }
     } catch (error) {
         console.error("Failed to build fixtures image preview:", error);
         await interaction.editReply(

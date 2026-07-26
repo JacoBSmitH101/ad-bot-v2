@@ -1,9 +1,46 @@
 import { AttachmentBuilder } from "discord.js";
 import { DomainError } from "../utils/DomainError.js";
-import {
-    combineFixtureImages,
-    renderFixturesImage,
-} from "./FixturesImageRenderer.js";
+import { renderFixturesImage } from "./FixturesImageRenderer.js";
+
+function fixtureMessageKey(divisionId) {
+    return `division:${divisionId ?? "all"}`;
+}
+
+function parseFixtureMessageIds(rawValue, divisions) {
+    if (rawValue && typeof rawValue === "object" && !Array.isArray(rawValue)) {
+        return { ...rawValue };
+    }
+
+    const raw = String(rawValue ?? "").trim();
+    if (!raw) return {};
+
+    try {
+        const parsed = JSON.parse(raw);
+        if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+            return parsed;
+        }
+    } catch {
+        // A plain Discord ID is the legacy format.
+    }
+
+    const firstDivision = divisions[0];
+    return firstDivision
+        ? { [fixtureMessageKey(firstDivision.id)]: raw }
+        : {};
+}
+
+function fixtureAttachment({ image, season, division, week }) {
+    const safeDivisionName = String(division.name)
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-|-$/g, "");
+    return new AttachmentBuilder(image, {
+        name: `fixtures-week-${week}-${
+            safeDivisionName || division.sort_order || "division"
+        }.png`,
+        description: `${season.name} ${division.name} Week ${week} fixtures`,
+    });
+}
 
 /**
  * Service for publishing and refreshing fixture messages in Discord.
@@ -24,11 +61,114 @@ export class FixturesPublisherService {
         this.players = players;
     }
 
+    async buildDivisionImages({ client, season, week }) {
+        const matches = await this.matches.listForSeasonWeekWithResults({
+            seasonId: season.id,
+            week,
+        });
+        const pastMatches = await this.matches.listUnreportedBeforeWeek({
+            seasonId: season.id,
+            week,
+        });
+        const divisions = await this.divisions.listForSeason(season.id);
+        const divisionsToRender =
+            divisions.length > 0
+                ? divisions
+                : [{ id: null, name: "All Divisions", sort_order: 1 }];
+
+        const playerIds = new Set();
+        for (const match of [...matches, ...pastMatches]) {
+            playerIds.add(match.player_a_id);
+            playerIds.add(match.player_b_id);
+        }
+
+        const nameById = new Map();
+        const idsToLookup = [...playerIds].filter(
+            (id) => !String(id).startsWith("FAKE_")
+        );
+        if (idsToLookup.length > 0) {
+            const players = await this.players.listByDiscordIds({
+                discordUserIds: idsToLookup,
+            });
+            const foundIds = new Set();
+            for (const player of players) {
+                const name =
+                    player.display_name ?? player.discord_user_id;
+                nameById.set(player.discord_user_id, name);
+                foundIds.add(player.discord_user_id);
+            }
+
+            const missingIds = idsToLookup.filter(
+                (id) => !foundIds.has(id)
+            );
+            for (const missingId of missingIds) {
+                try {
+                    const discordUser = await client.users.fetch(missingId);
+                    const name =
+                        discordUser.displayName ?? discordUser.username;
+                    nameById.set(missingId, name);
+                    await this.players.upsert({
+                        discordUserId: missingId,
+                        displayName: name,
+                    });
+                } catch {
+                    // Fall back to the Discord ID if the user cannot be fetched.
+                }
+            }
+        }
+
+        const byDivision = new Map();
+        for (const match of matches) {
+            const key = String(match.division_id);
+            if (!byDivision.has(key)) byDivision.set(key, []);
+            byDivision.get(key).push(match);
+        }
+        const overdueByDivision = new Map();
+        for (const match of pastMatches) {
+            const key = String(match.division_id);
+            if (!overdueByDivision.has(key)) overdueByDivision.set(key, []);
+            overdueByDivision.get(key).push(match);
+        }
+
+        const images = [];
+        for (const division of divisionsToRender) {
+            const divisionKey = String(division.id);
+            const divisionMatches =
+                division.id === null
+                    ? matches
+                    : byDivision.get(divisionKey) ?? [];
+            const overdueMatches =
+                division.id === null
+                    ? pastMatches
+                    : overdueByDivision.get(divisionKey) ?? [];
+            divisionMatches.sort((a, b) =>
+                String(a.id).localeCompare(String(b.id))
+            );
+            overdueMatches.sort(
+                (a, b) =>
+                    Number(a.week) - Number(b.week) ||
+                    String(a.id).localeCompare(String(b.id))
+            );
+
+            const image = await renderFixturesImage({
+                seasonName: season.name,
+                divisionName: division.name,
+                week,
+                matches: divisionMatches,
+                overdueMatches,
+                nameById,
+            });
+            images.push({ division, image });
+        }
+
+        return images;
+    }
+
     /**
      * Publish fixtures for a week to a Discord channel.
-     * Creates a message and stores channel/message/week references.
+     * Creates one image message per division and stores their references.
      * @param {{ client: Client, guildId: string, channelId: string, week: (number|null) }} params
-     * @returns {Promise<{season: Season, channelId: string, messageId: string, week: number}>}
+     * @returns {Promise<{season: Season, channelId: string, messageId: (string|null), messageIds: Object.<string, string>, week: number}>}
      * @throws {DomainError} If no season, invalid state, bad channel, or invalid week.
      */
     async publish({ client, guildId, channelId, week = null }) {
@@ -58,20 +198,34 @@ export class FixturesPublisherService {
             throw new DomainError("INVALID_WEEK", "Week must be >= 1.");
         }
 
-        // store config
         await this.seasons.setFixturesChannel(season.id, channelId);
         await this.seasons.setFixturesWeek(season.id, targetWeek);
 
-        // create placeholder message (we'll edit it immediately)
-        const msg = await channel.send({
-            content: "📅 Publishing fixtures...",
+        const divisionImages = await this.buildDivisionImages({
+            client,
+            season,
+            week: targetWeek,
         });
-        await this.seasons.setFixturesMessageId(season.id, msg.id);
+        const messageIds = {};
+        for (const entry of divisionImages) {
+            const file = fixtureAttachment({
+                image: entry.image,
+                season,
+                division: entry.division,
+                week: targetWeek,
+            });
+            const msg = await channel.send({ files: [file] });
+            messageIds[fixtureMessageKey(entry.division.id)] = msg.id;
+        }
+        await this.seasons.setFixturesMessageIds(season.id, messageIds);
 
-        // render
-        await this.refresh({ client, guildId });
-
-        return { season, channelId, messageId: msg.id, week: targetWeek };
+        return {
+            season,
+            channelId,
+            messageId: Object.values(messageIds)[0] ?? null,
+            messageIds,
+            week: targetWeek,
+        };
     }
 
     /**
@@ -98,9 +252,9 @@ export class FixturesPublisherService {
     }
 
     /**
-     * Refresh the published fixtures message with current data.
+     * Refresh each published division fixture message with current data.
      * @param {{ client: Client, guildId: string }} params
-     * @returns {Promise<{updated: boolean, skipped: boolean}>}
+     * @returns {Promise<{updated: boolean, updatedCount?: number, skipped: boolean}>}
      * @throws {DomainError} If no season.
      */
     async refresh({ client, guildId }) {
@@ -120,125 +274,62 @@ export class FixturesPublisherService {
         if (!channel || !channel.isTextBased())
             return { updated: false, skipped: true };
 
-        const msg = await channel.messages
-            .fetch(season.fixtures_message_id)
-            .catch(() => null);
-        if (!msg) return { updated: false, skipped: true };
-
-        // pull matches + divisions to label nicely
-        const matches = await this.matches.listForSeasonWeekWithResults({
-            seasonId: season.id,
+        const divisionImages = await this.buildDivisionImages({
+            client,
+            season,
             week,
         });
-
-        // pull unreported matches from previous weeks
-        const pastMatches = await this.matches.listUnreportedBeforeWeek({
-            seasonId: season.id,
-            week,
-        });
-
-        const divisions = await this.divisions.listForSeason(season.id);
-
-        const playerIds = new Set();
-        for (const m of matches) {
-            playerIds.add(m.player_a_id);
-            playerIds.add(m.player_b_id);
-        }
-        for (const m of pastMatches) {
-            playerIds.add(m.player_a_id);
-            playerIds.add(m.player_b_id);
-        }
-
-        const nameById = new Map();
-        const idsToLookup = [...playerIds].filter(
-            (id) => !id.startsWith("FAKE_")
+        const divisions = divisionImages.map(({ division }) => division);
+        const originalStoredValue =
+            typeof season.fixtures_message_id === "string"
+                ? season.fixtures_message_id.trim()
+                : JSON.stringify(season.fixtures_message_id ?? {});
+        const messageIds = parseFixtureMessageIds(
+            season.fixtures_message_id,
+            divisions
         );
-        if (idsToLookup.length > 0) {
-            const players = await this.players.listByDiscordIds({
-                discordUserIds: idsToLookup,
-            });
-            const foundIds = new Set();
-            for (const p of players) {
-                const name = p.display_name ?? p.discord_user_id;
-                nameById.set(p.discord_user_id, name);
-                foundIds.add(p.discord_user_id);
-            }
 
-            // Fallback: try to fetch missing players from Discord API
-            // This handles edge cases where players exist in matches but not in the players table
-            const missingIds = idsToLookup.filter((id) => !foundIds.has(id));
-            if (missingIds.length > 0 && client) {
-                for (const missingId of missingIds) {
-                    try {
-                        const discordUser = await client.users.fetch(missingId);
-                        const name = discordUser.displayName ?? discordUser.username;
-                        nameById.set(missingId, name);
-                        // Also upsert to players table for future lookups
-                        await this.players.upsert({
-                            discordUserId: missingId,
-                            displayName: name,
-                        });
-                    } catch (err) {
-                        // User not found or other error - will fall back to showing ID
-                    }
-                }
-            }
-        }
-
-        // group by division
-        const byDiv = new Map();
-        for (const m of matches) {
-            if (!byDiv.has(m.division_id)) byDiv.set(m.division_id, []);
-            byDiv.get(m.division_id).push(m);
-        }
-
-        // group past matches by division
-        const pastByDiv = new Map();
-        for (const m of pastMatches) {
-            if (!pastByDiv.has(m.division_id)) pastByDiv.set(m.division_id, []);
-            pastByDiv.get(m.division_id).push(m);
-        }
-
-        const divisionsToRender =
-            divisions.length > 0
-                ? divisions
-                : [{ id: null, name: "All Divisions" }];
-        const divisionImages = [];
-
-        for (const division of divisionsToRender) {
-            const divisionMatches =
-                division.id === null
-                    ? matches
-                    : byDiv.get(division.id) ?? [];
-            const overdueMatches =
-                division.id === null
-                    ? pastMatches
-                    : pastByDiv.get(division.id) ?? [];
-            const image = await renderFixturesImage({
-                seasonName: season.name,
-                divisionName: division.name,
+        let updatedCount = 0;
+        for (const entry of divisionImages) {
+            const key = fixtureMessageKey(entry.division.id);
+            const storedId = messageIds[key];
+            let msg = storedId
+                ? await channel.messages.fetch(storedId).catch(() => null)
+                : null;
+            const file = fixtureAttachment({
+                image: entry.image,
+                season,
+                division: entry.division,
                 week,
-                matches: divisionMatches,
-                overdueMatches,
-                nameById,
             });
-            divisionImages.push(image);
+
+            if (msg) {
+                await msg.edit({
+                    content: "",
+                    embeds: [],
+                    components: [],
+                    attachments: [],
+                    files: [file],
+                });
+            } else {
+                msg = await channel.send({ files: [file] });
+                messageIds[key] = msg.id;
+            }
+            updatedCount += 1;
         }
 
-        const png = await combineFixtureImages(divisionImages);
-        const file = new AttachmentBuilder(png, {
-            name: `fixtures-week-${week}.png`,
-            description: `${season.name} Week ${week} fixtures`,
-        });
+        const serializedMessageIds = JSON.stringify(messageIds);
+        if (serializedMessageIds !== originalStoredValue) {
+            await this.seasons.setFixturesMessageIds(
+                season.id,
+                messageIds
+            );
+        }
 
-        await msg.edit({
-            content: "",
-            embeds: [],
-            components: [],
-            attachments: [],
-            files: [file],
-        });
-
-        return { updated: true, skipped: false };
+        return {
+            updated: updatedCount > 0,
+            updatedCount,
+            skipped: false,
+        };
     }
 }
