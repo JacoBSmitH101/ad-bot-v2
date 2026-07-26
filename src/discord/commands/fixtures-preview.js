@@ -4,7 +4,10 @@ import {
     PermissionFlagsBits,
     SlashCommandBuilder,
 } from "discord.js";
-import { renderFixturesImage } from "../../services/FixturesImageRenderer.js";
+import {
+    combineFixtureImages,
+    renderFixturesImage,
+} from "../../services/FixturesImageRenderer.js";
 
 /**
  * Discord slash command: /fixtures-preview
@@ -109,9 +112,14 @@ export async function execute(interaction) {
                 seasonId: previewSeason.id,
                 week,
             });
+        const overdueMatches =
+            await interaction.client.repos.matches.listUnreportedBeforeWeek({
+                seasonId: previewSeason.id,
+                week,
+            });
         const playerIds = [
             ...new Set(
-                matches.flatMap((match) => [
+                [...matches, ...overdueMatches].flatMap((match) => [
                     match.player_a_id,
                     match.player_b_id,
                 ])
@@ -131,7 +139,7 @@ export async function execute(interaction) {
             ])
         );
 
-        const files = [];
+        const divisionImages = [];
         for (const division of selectedDivisions.slice(0, 10)) {
             const divisionMatches = matches
                 .filter(
@@ -139,27 +147,32 @@ export async function execute(interaction) {
                         String(match.division_id) === String(division.id)
                 )
                 .sort((a, b) => String(a.id).localeCompare(String(b.id)));
+            const divisionOverdueMatches = overdueMatches
+                .filter(
+                    (match) =>
+                        String(match.division_id) === String(division.id)
+                )
+                .sort(
+                    (a, b) =>
+                        Number(a.week) - Number(b.week) ||
+                        String(a.id).localeCompare(String(b.id))
+                );
             const png = await renderFixturesImage({
                 seasonName: previewSeason.name,
                 divisionName: division.name,
                 week,
                 matches: divisionMatches,
+                overdueMatches: divisionOverdueMatches,
                 nameById,
             });
-            const safeDivisionName = String(division.name)
-                .toLowerCase()
-                .replace(/[^a-z0-9]+/g, "-")
-                .replace(/^-|-$/g, "");
-            files.push(
-                new AttachmentBuilder(png, {
-                    name: `fixtures-week-${week}-${
-                        safeDivisionName || division.sort_order
-                    }.png`,
-                    description: `${previewSeason.name} ${division.name} Week ${week} fixtures`,
-                })
-            );
+            divisionImages.push(png);
         }
 
+        const combinedPng = await combineFixtureImages(divisionImages);
+        const file = new AttachmentBuilder(combinedPng, {
+            name: `fixtures-week-${week}.png`,
+            description: `${previewSeason.name} Week ${week} fixtures`,
+        });
         const showingPreviousSeason =
             currentSeason &&
             String(currentSeason.id) !== String(previewSeason.id);
@@ -169,12 +182,8 @@ export async function execute(interaction) {
 
         await interaction.editReply({
             content: previewMessage,
-            files: [files[0]],
+            files: [file],
         });
-
-        for (const file of files.slice(1)) {
-            await interaction.followUp({ files: [file] });
-        }
     } catch (error) {
         console.error("Failed to build fixtures image preview:", error);
         await interaction.editReply(

@@ -1,39 +1,13 @@
-import { EmbedBuilder } from "discord.js";
+import { AttachmentBuilder } from "discord.js";
 import { DomainError } from "../utils/DomainError.js";
-
-/**
- * Formats a player ID for display.
- * @private
- * @param {string} id
- * @param {Map<string, string>} [nameById]
- * @returns {string}
- */
-function fmtPlayer(id, nameById) {
-    if (id.startsWith("FAKE_")) return `\`${id}\``;
-    if (nameById?.has(id)) return `\`${nameById.get(id)}\``;
-    return `\`${id}\``;
-}
-
-function statusIcon(status) {
-    if (status === "confirmed") return "🟢";
-    if (status === "reported") return "🟠";
-    return "🗓️";
-}
-
-function normalizeMatchResult(match) {
-    const mrRaw = match.match_results;
-    const mr = Array.isArray(mrRaw) ? mrRaw[0] : mrRaw;
-    if (!mr) return null;
-    return {
-        legs_a: Number(mr.legs_a),
-        legs_b: Number(mr.legs_b),
-        proof_url: mr.proof_url ?? null,
-    };
-}
+import {
+    combineFixtureImages,
+    renderFixturesImage,
+} from "./FixturesImageRenderer.js";
 
 /**
  * Service for publishing and refreshing fixture messages in Discord.
- * Manages Discord embed creation and message updates for weekly fixtures.
+ * Manages Discord image creation and message updates for weekly fixtures.
  */
 export class FixturesPublisherService {
     /**
@@ -164,7 +138,6 @@ export class FixturesPublisherService {
         });
 
         const divisions = await this.divisions.listForSeason(season.id);
-        const divNameById = new Map(divisions.map((d) => [d.id, d.name]));
 
         const playerIds = new Set();
         for (const m of matches) {
@@ -226,98 +199,45 @@ export class FixturesPublisherService {
             pastByDiv.get(m.division_id).push(m);
         }
 
-        const embed = new EmbedBuilder()
-            .setTitle(`📅 Weekly Fixtures — ${season.name}`)
-            .setDescription(
-                `**Week ${week}**\n🗓️ to-play • 🟠 reported • 🟢 confirmed`
-            )
-            .setTimestamp();
+        const divisionsToRender =
+            divisions.length > 0
+                ? divisions
+                : [{ id: null, name: "All Divisions" }];
+        const divisionImages = [];
 
-        if (matches.length === 0) {
-            embed.addFields({
-                name: `Week ${week}`,
-                value: "_No fixtures found for this week._",
-                inline: false,
+        for (const division of divisionsToRender) {
+            const divisionMatches =
+                division.id === null
+                    ? matches
+                    : byDiv.get(division.id) ?? [];
+            const overdueMatches =
+                division.id === null
+                    ? pastMatches
+                    : pastByDiv.get(division.id) ?? [];
+            const image = await renderFixturesImage({
+                seasonName: season.name,
+                divisionName: division.name,
+                week,
+                matches: divisionMatches,
+                overdueMatches,
+                nameById,
             });
-        } else {
-            const divIds = [...byDiv.keys()].sort((a, b) =>
-                String(divNameById.get(a) ?? a).localeCompare(
-                    divNameById.get(b) ?? b
-                )
-            );
-
-            for (const divId of divIds) {
-                const ms = byDiv.get(divId) ?? [];
-                const divName = divNameById.get(divId) ?? `Division ${divId}`;
-
-                const lines = ms.map((m) => {
-                    const icon = statusIcon(m.status);
-                    const mr = normalizeMatchResult(m);
-
-                    let score = "";
-                    let proof = "";
-
-                    if (mr) {
-                        score = ` — **${mr.legs_a}-${mr.legs_b}**`;
-                        if (mr.proof_url)
-                            proof = ` ([Match](${mr.proof_url}))`;
-                    }
-
-                    // show raw A vs B orientation; it's "fixtures", not personal view
-                    return `${icon} ${fmtPlayer(
-                        m.player_a_id,
-                        nameById
-                    )} vs ${fmtPlayer(m.player_b_id, nameById)}${score}${proof}`;
-                });
-
-                embed.addFields({
-                    name: divName,
-                    value: lines.join("\n"),
-                    inline: false,
-                });
-            }
+            divisionImages.push(image);
         }
 
-        // Add section for past unreported matches
-        if (pastMatches.length > 0) {
-            const pastDivIds = [...pastByDiv.keys()].sort((a, b) =>
-                String(divNameById.get(a) ?? a).localeCompare(
-                    divNameById.get(b) ?? b
-                )
-            );
+        const png = await combineFixtureImages(divisionImages);
+        const file = new AttachmentBuilder(png, {
+            name: `fixtures-week-${week}.png`,
+            description: `${season.name} Week ${week} fixtures`,
+        });
 
-            for (const divId of pastDivIds) {
-                const ms = pastByDiv.get(divId) ?? [];
-                const divName = divNameById.get(divId) ?? `Division ${divId}`;
-
-                const lines = ms.map((m) => {
-                    const icon = statusIcon(m.status);
-                    const mr = normalizeMatchResult(m);
-
-                    let score = "";
-                    let proof = "";
-
-                    if (mr) {
-                        score = ` — **${mr.legs_a}-${mr.legs_b}**`;
-                        if (mr.proof_url)
-                            proof = ` ([Match](${mr.proof_url}))`;
-                    }
-
-                    return `${icon} ${fmtPlayer(
-                        m.player_a_id,
-                        nameById
-                    )} vs ${fmtPlayer(m.player_b_id, nameById)}${score}${proof}`;
-                });
-
-                embed.addFields({
-                    name: `${divName} (Past Weeks)`,
-                    value: lines.join("\n"),
-                    inline: false,
-                });
-            }
-        }
-
-        await msg.edit({ content: "", embeds: [embed], components: [] });
+        await msg.edit({
+            content: "",
+            embeds: [],
+            components: [],
+            attachments: [],
+            files: [file],
+        });
 
         return { updated: true, skipped: false };
     }
