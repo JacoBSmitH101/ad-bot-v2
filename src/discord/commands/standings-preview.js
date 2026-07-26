@@ -9,7 +9,7 @@ import { renderStandingsImage } from "../../services/StandingsImageRenderer.js";
 
 /**
  * Discord slash command: /standings-preview
- * Admin-only, ephemeral trial of image-based standings.
+ * Admin-only command that posts image-based standings to the channel.
  * It does not create or edit the official published standings messages.
  * @module commands/standings-preview
  */
@@ -46,7 +46,7 @@ export async function execute(interaction) {
         return;
     }
 
-    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+    await interaction.deferReply();
 
     try {
         const currentSeason =
@@ -136,7 +136,6 @@ export async function execute(interaction) {
         for (const file of files.slice(1)) {
             await interaction.followUp({
                 files: [file],
-                flags: MessageFlags.Ephemeral,
             });
         }
     } catch (error) {
