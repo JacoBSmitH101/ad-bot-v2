@@ -7,6 +7,40 @@ const CARD_Y = 224;
 const ROW_HEIGHT = 92;
 const FOOTER_HEIGHT = 72;
 
+export async function combineFixtureImages(images) {
+    if (!Array.isArray(images) || images.length === 0) {
+        throw new Error("At least one fixture image is required.");
+    }
+    if (images.length === 1) return images[0];
+
+    const gap = 16;
+    const metadata = await Promise.all(
+        images.map((image) => sharp(image).metadata())
+    );
+    const width = Math.max(...metadata.map((item) => item.width ?? WIDTH));
+    const height =
+        metadata.reduce((sum, item) => sum + (item.height ?? 0), 0) +
+        gap * (images.length - 1);
+    let top = 0;
+    const composites = images.map((input, index) => {
+        const entry = { input, top, left: 0 };
+        top += (metadata[index].height ?? 0) + gap;
+        return entry;
+    });
+
+    return sharp({
+        create: {
+            width,
+            height,
+            channels: 4,
+            background: "#070c15",
+        },
+    })
+        .composite(composites)
+        .png({ compressionLevel: 9 })
+        .toBuffer();
+}
+
 function escapeXml(value) {
     return String(value ?? "")
         .replaceAll("&", "&amp;")
@@ -105,6 +139,7 @@ function statusTheme(status) {
  *   divisionName: string,
  *   week: number,
  *   matches: Array<object>,
+ *   overdueMatches?: Array<object>,
  *   nameById?: Map<string, string>
  * }} params
  * @returns {Promise<Buffer>}
@@ -114,20 +149,35 @@ export async function renderFixturesImage({
     divisionName,
     week,
     matches,
+    overdueMatches = [],
     nameById = new Map(),
 }) {
     const rows = Array.isArray(matches) ? matches : [];
-    const rowCount = Math.max(rows.length, 1);
-    const height = CARD_Y + rowCount * ROW_HEIGHT + FOOTER_HEIGHT;
+    const overdueRows = Array.isArray(overdueMatches) ? overdueMatches : [];
+    const currentRowCount = Math.max(rows.length, 1);
+    const overdueHeaderHeight = overdueRows.length > 0 ? 58 : 0;
+    const overdueStartY =
+        CARD_Y + currentRowCount * ROW_HEIGHT + overdueHeaderHeight;
+    const height =
+        overdueStartY + overdueRows.length * ROW_HEIGHT + FOOTER_HEIGHT;
     const completed = rows.filter(
         (match) => match.status === "confirmed"
     ).length;
 
-    const rowSvg = rows
+    const renderRows = (items, startY, { overdue = false } = {}) =>
+        items
         .map((match, index) => {
-            const y = CARD_Y + index * ROW_HEIGHT;
+            const y = startY + index * ROW_HEIGHT;
             const baseline = y + 54;
-            const theme = statusTheme(match.status);
+            const theme = overdue
+                ? {
+                      label: `OVERDUE · W${match.week}`,
+                      colour: "#fb7185",
+                      text: "#fecdd3",
+                      fill: "rgba(251,113,133,0.075)",
+                      stroke: "rgba(251,113,133,0.22)",
+                  }
+                : statusTheme(match.status);
             const result = normalizeResult(match);
             const playerA = truncate(
                 nameById.get(match.player_a_id) ?? match.player_a_id
@@ -149,10 +199,12 @@ export async function renderFixturesImage({
                 ${text({
                     x: 76,
                     y: baseline,
-                    value: String(index + 1).padStart(2, "0"),
+                    value: overdue
+                        ? `W${match.week}`
+                        : String(index + 1).padStart(2, "0"),
                     size: 17,
                     weight: 700,
-                    fill: "#64748b",
+                    fill: overdue ? "#fda4af" : "#64748b",
                     anchor: "middle",
                     letterSpacing: 1.2,
                 })}
@@ -201,6 +253,10 @@ export async function renderFixturesImage({
         })
         .join("");
 
+    const rowSvg = renderRows(rows, CARD_Y);
+    const overdueSvg = renderRows(overdueRows, overdueStartY, {
+        overdue: true,
+    });
     const emptySvg =
         rows.length === 0
             ? text({
@@ -211,6 +267,24 @@ export async function renderFixturesImage({
                   fill: "#64748b",
                   anchor: "middle",
               })
+            : "";
+    const overdueHeaderSvg =
+        overdueRows.length > 0
+            ? `
+                ${text({
+                    x: 42,
+                    y:
+                        CARD_Y +
+                        currentRowCount * ROW_HEIGHT +
+                        overdueHeaderHeight -
+                        18,
+                    value: "OVERDUE FROM PREVIOUS WEEKS",
+                    size: 14,
+                    weight: 750,
+                    fill: "#fb7185",
+                    letterSpacing: 1.8,
+                })}
+            `
             : "";
 
     const generatedAt = new Intl.DateTimeFormat("en-GB", {
@@ -274,11 +348,13 @@ export async function renderFixturesImage({
 
             ${rowSvg}
             ${emptySvg}
+            ${overdueHeaderSvg}
+            ${overdueSvg}
 
             ${text({
                 x: 32,
                 y: height - 25,
-                value: "Cyan: to play · Amber: reported · Green: confirmed",
+                value: "Cyan: to play · Amber: reported · Green: confirmed · Red: overdue",
                 size: 14,
                 fill: "#64748b",
             })}

@@ -1,38 +1,21 @@
 import { DomainError } from "../utils/DomainError.js";
-import { EmbedBuilder } from "discord.js";
+import { AttachmentBuilder } from "discord.js";
 import { extractAutodartsMatchId } from "../utils/autodarts.js";
 import { supabase } from "../db/supabase.js";
+import { renderStandingsImage } from "./StandingsImageRenderer.js";
 
-/**
- * Formats a player ID for display.
- * @private
- * @param {string} id
- * @param {Map<string, string>} [nameById]
- * @returns {string}
- */
-function fmtPlayer(id, nameById) {
-    if (id.startsWith("FAKE_")) return `\`${id}\``;
-    if (nameById?.has(id)) return `\`${nameById.get(id)}\``;
-    return `\`${id}\``;
-}
-function medal(i) {
-    return i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : "•";
-}
 function fmtPlayerInline(id, nameById) {
     if (id.startsWith("FAKE_")) return `\`${id}\``;
     if (nameById?.has(id)) return `\`${nameById.get(id)}\``;
     return `\`${id}\``;
 }
 
-function normalizeMatchResult(match) {
-    const mrRaw = match.match_results;
-    const mr = Array.isArray(mrRaw) ? mrRaw[0] : mrRaw;
-    if (!mr) return null;
-    return {
-        legs_a: Number(mr.legs_a),
-        legs_b: Number(mr.legs_b),
-        proof_url: mr.proof_url ?? null,
-    };
+function safeDivisionFilename(divisionName, fallback) {
+    const safeName = String(divisionName)
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-|-$/g, "");
+    return `standings-${safeName || fallback}.png`;
 }
 
 function buildRankMap(rows) {
@@ -109,50 +92,8 @@ function arrow(delta) {
 }
 
 /**
- * Build a summary embed for standings.
- * @private
- * @param {{ seasonName: string, divisionName: string, standings: Array.<StandingsRow>, lastUpdateText: (string|null), playerAverages: (Map<string, number>|null), nameById: (Map<string, string>|null) }} params
- * @returns {EmbedBuilder}
- */
-function buildSummaryEmbed({
-    seasonName,
-    divisionName,
-    standings,
-    lastUpdateText = null,
-    playerAverages = null,
-    nameById = null,
-}) {
-    const lines = standings.map((r, idx) => {
-        let avgText = "";
-        if (playerAverages) {
-            if (playerAverages.has(r.discordUserId)) {
-                avgText = ` (${playerAverages
-                    .get(r.discordUserId)
-                    .toFixed(1)})`;
-            } else {
-                avgText = " (n/a)";
-            }
-        }
-        const positionText = idx >= 3 ? `**${idx + 1}.** ` : "";
-        return `${medal(idx)} ${positionText}**${fmtPlayer(
-            r.discordUserId,
-            nameById
-        )}**${avgText} — **${r.points} pts** (${r.played}/${r.totalMatches})`;
-    });
-
-    const desc =
-        (lastUpdateText ? `${lastUpdateText}\n\n` : "") +
-        (lines.join("\n") || "_No players._");
-
-    return new EmbedBuilder()
-        .setTitle(`📊 ${seasonName} — ${divisionName}`)
-        .setDescription(desc)
-        .setTimestamp();
-}
-
-/**
  * Service for publishing and refreshing standings messages in Discord.
- * Manages Discord embed creation and message updates for division standings.
+ * Manages Discord image creation and message updates for division standings.
  */
 export class StandingsPublisherService {
     /**
@@ -320,46 +261,34 @@ export class StandingsPublisherService {
             guildId,
         });
 
-        // Fetch player names
-        const playerIds = new Set();
-        for (const d of res.divisions) {
-            for (const s of d.standings) {
-                if (!s.discordUserId.startsWith("FAKE_")) {
-                    playerIds.add(s.discordUserId);
-                }
-            }
-        }
-
-        const nameById = new Map();
-        if (playerIds.size > 0) {
-            const players = await this.players.listByDiscordIds({
-                discordUserIds: [...playerIds],
-            });
-            for (const p of players) {
-                const name = p.display_name ?? p.discord_user_id;
-                nameById.set(p.discord_user_id, name);
-            }
-        }
-
         // post one message per division and store IDs keyed by division id
         const messageIds = {};
 
-        for (const d of res.divisions) {
+        for (const [divisionIndex, d] of res.divisions.entries()) {
             // Get player averages for this division
             const playerAverages = await this.getPlayerAverages(
                 res.season.id,
                 d.standings
             );
 
-            const embed = buildSummaryEmbed({
+            const png = await renderStandingsImage({
                 seasonName: res.season.name,
                 divisionName: d.division.name,
                 standings: d.standings,
                 playerAverages,
-                nameById,
+                isTopDivision: divisionIndex === 0,
+                isBottomDivision:
+                    divisionIndex === res.divisions.length - 1,
+            });
+            const file = new AttachmentBuilder(png, {
+                name: safeDivisionFilename(
+                    d.division.name,
+                    divisionIndex + 1
+                ),
+                description: `${res.season.name} ${d.division.name} standings`,
             });
 
-            const msg = await channel.send({ embeds: [embed] });
+            const msg = await channel.send({ files: [file] });
 
             messageIds[`division:${d.division.id}`] = msg.id;
         }
@@ -459,7 +388,7 @@ export class StandingsPublisherService {
 
         let updated = 0;
 
-        for (const d of res.divisions) {
+        for (const [divisionIndex, d] of res.divisions.entries()) {
             const key = `division:${d.division.id}`;
             const msgId = season.standings_message_ids?.[key];
             if (!msgId) continue;
@@ -502,16 +431,30 @@ export class StandingsPublisherService {
                 d.standings
             );
 
-            const embed = buildSummaryEmbed({
+            const png = await renderStandingsImage({
                 seasonName: res.season.name,
                 divisionName: d.division.name,
                 standings: d.standings,
-                lastUpdateText,
                 playerAverages,
-                nameById,
+                isTopDivision: divisionIndex === 0,
+                isBottomDivision:
+                    divisionIndex === res.divisions.length - 1,
+            });
+            const file = new AttachmentBuilder(png, {
+                name: safeDivisionFilename(
+                    d.division.name,
+                    divisionIndex + 1
+                ),
+                description: `${res.season.name} ${d.division.name} standings`,
             });
 
-            await msg.edit({ embeds: [embed] });
+            await msg.edit({
+                content: lastUpdateText ?? "",
+                embeds: [],
+                components: [],
+                attachments: [],
+                files: [file],
+            });
             updated += 1;
         }
 
