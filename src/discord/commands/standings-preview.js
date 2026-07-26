@@ -122,12 +122,23 @@ export async function execute(interaction) {
             );
         }
 
+        const previewMessage = showingPreviousSeason
+            ? `Showing **${result.season.name}** because **${currentSeason.name}** has not started yet. Image preview only — this has not changed the official published standings.`
+            : `Showing **${result.season.name}**. Image preview only — this has not changed the official published standings.`;
+
         await interaction.editReply({
-            content: showingPreviousSeason
-                ? `Showing **${result.season.name}** because **${currentSeason.name}** has not started yet. Image preview only — this has not changed the official published standings.`
-                : `Showing **${result.season.name}**. Image preview only — this has not changed the official published standings.`,
-            files,
+            content: previewMessage,
+            files: [files[0]],
         });
+
+        // Discord crops galleries containing multiple wide images. Sending each
+        // division separately keeps every standings table full-width and legible.
+        for (const file of files.slice(1)) {
+            await interaction.followUp({
+                files: [file],
+                flags: MessageFlags.Ephemeral,
+            });
+        }
     } catch (error) {
         if (error instanceof DomainError) {
             await interaction.editReply(error.message);
