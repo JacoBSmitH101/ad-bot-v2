@@ -4,6 +4,7 @@ import { DomainError } from "../utils/DomainError.js";
  * @typedef {Object} MatchWeek
  * @property {number} week
  * @property {Array.<string>} lines - Formatted match lines for display
+ * @property {Array.<Object>} [matches] - Structured matches for image-based displays
  */
 
 /**
@@ -16,6 +17,8 @@ import { DomainError } from "../utils/DomainError.js";
  * @typedef {Object} UnreportedMatchesResult
  * @property {Season} season
  * @property {Array.<MatchWeek>} weeks
+ * @property {number} cutoffWeek
+ * @property {number} currentWeek
  */
 
 /**
@@ -180,7 +183,7 @@ export class MatchesService {
      * @returns {Promise<UnreportedMatchesResult>}
      * @throws {DomainError} If no season or invalid season state.
      */
-    async getUnreportedBeforeWeek({ guildId, week }) {
+    async getUnreportedBeforeWeek({ guildId, week = null }) {
         const season = await this.seasons.getCurrentForGuild(guildId);
         if (!season) throw new DomainError("NO_SEASON", "No season found.");
 
@@ -192,9 +195,18 @@ export class MatchesService {
             );
         }
 
+        const cutoffWeek = Number(week ?? season.current_week ?? 1);
+        if (!Number.isInteger(cutoffWeek) || cutoffWeek <= 1) {
+            throw new DomainError(
+                "INVALID_WEEK",
+                "Week must be greater than 1 to check previous weeks."
+            );
+        }
+        const currentWeek = Number(season.current_week ?? cutoffWeek);
+
         const matches = await this.matches.listUnreportedBeforeWeek({
             seasonId: season.id,
-            week,
+            week: cutoffWeek,
         });
 
         const divisions = await this.divisions.listForSeason(season.id);
@@ -211,7 +223,7 @@ export class MatchesService {
             .sort((a, b) => a - b)
             .map((w) => {
                 const ms = byWeek.get(w) ?? [];
-                const lines = ms.map((m) => {
+                const displayMatches = ms.map((m) => {
                     const icon = statusIcon(m.status);
                     const a = fmtPlayer(m.player_a_id);
                     const b = fmtPlayer(m.player_b_id);
@@ -234,12 +246,25 @@ export class MatchesService {
                             ? "disputed"
                             : "scheduled";
 
-                    return `[${divName}] ${icon} ${a} vs ${b}${scorePart} _(${statusText})_`;
+                    return {
+                        id: m.id,
+                        week: w,
+                        divisionId: m.division_id,
+                        divisionName: divName,
+                        playerAId: m.player_a_id,
+                        playerBId: m.player_b_id,
+                        status: m.status,
+                        line: `[${divName}] ${icon} ${a} vs ${b}${scorePart} _(${statusText})_`,
+                    };
                 });
 
-                return { week: w, lines };
+                return {
+                    week: w,
+                    lines: displayMatches.map((match) => match.line),
+                    matches: displayMatches,
+                };
             });
 
-        return { season, weeks };
+        return { season, weeks, cutoffWeek, currentWeek };
     }
 }

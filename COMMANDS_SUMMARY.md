@@ -138,10 +138,10 @@
   - `url` (optional) - Proof URL
 - **Notes:** Refreshes standings and fixtures after editing
 
-#### `/unreported_before_week`
-- **What it does:** Find unreported matches from weeks before the specified week
-- **Parameters:** `week` (required) - Show matches from weeks before this number (must be > 1)
-- **Notes:** Useful for identifying overdue matches
+#### `/overdue-matches`
+- **What it does:** Post a one-off public image of overdue matches in the current channel
+- **Parameters:** `week` (optional) - Cutoff week; defaults to the season's current week
+- **Notes:** Admin-only; stores no message reference and does not automatically refresh
 
 ### Autodarts Integration
 
