@@ -1,4 +1,59 @@
 import { DomainError } from "../utils/DomainError.js";
+import { supabase } from "../db/supabase.js";
+import { extractAutodartsMatchId } from "../utils/autodarts.js";
+
+function normalizeMatchResult(match) {
+    const raw = match?.match_results;
+    return Array.isArray(raw) ? raw[0] : raw;
+}
+
+function findPlayerStatsByLegsWon({
+    matchStats,
+    legsA,
+    legsB,
+    playerAId,
+    targetPlayerId,
+}) {
+    const first = matchStats?.[0];
+    const second = matchStats?.[1];
+    if (!first || !second) return null;
+
+    const firstLegs = Number(first.legsWon);
+    const secondLegs = Number(second.legsWon);
+    const targetLegs = Number(
+        targetPlayerId === playerAId ? legsA : legsB
+    );
+    const otherLegs = Number(
+        targetPlayerId === playerAId ? legsB : legsA
+    );
+
+    if (firstLegs === targetLegs) return first;
+    if (secondLegs === targetLegs) return second;
+    if (firstLegs === otherLegs) return second;
+    if (secondLegs === otherLegs) return first;
+    return null;
+}
+
+export function sortStandingsRows(rows) {
+    rows.sort((x, y) => {
+        if (y.points !== x.points) return y.points - x.points;
+        if (y.legDiff !== x.legDiff) return y.legDiff - x.legDiff;
+        if (y.legsFor !== x.legsFor) return y.legsFor - x.legsFor;
+
+        const xAverage =
+            x.average != null && Number.isFinite(Number(x.average))
+                ? Number(x.average)
+                : Number.NEGATIVE_INFINITY;
+        const yAverage =
+            y.average != null && Number.isFinite(Number(y.average))
+                ? Number(y.average)
+                : Number.NEGATIVE_INFINITY;
+        if (yAverage !== xAverage) return yAverage - xAverage;
+
+        return String(x.name).localeCompare(String(y.name));
+    });
+    return rows;
+}
 
 /**
  * @typedef {Object} StandingsRow
@@ -12,6 +67,7 @@ import { DomainError } from "../utils/DomainError.js";
  * @property {number} legsAgainst
  * @property {number} legDiff
  * @property {number} points
+ * @property {number|null} average
  */
 
 /**
@@ -20,17 +76,124 @@ import { DomainError } from "../utils/DomainError.js";
  */
 export class StandingsService {
     /**
-     * @param {{ seasons: SeasonRepository, divisions: DivisionRepository, divisionPlayers: DivisionPlayersRepository, matches: MatchRepository }} deps
+     * @param {{ seasons: SeasonRepository, divisions: DivisionRepository, divisionPlayers: DivisionPlayersRepository, matches: MatchRepository, statsDb?: Object }} deps
      * @param {SeasonRepository} deps.seasons Season repository instance.
      * @param {DivisionRepository} deps.divisions Division repository instance.
      * @param {DivisionPlayersRepository} deps.divisionPlayers Division players repository instance.
      * @param {MatchRepository} deps.matches Match repository instance.
+     * @param {Object} [deps.statsDb] Supabase-compatible stats client.
      */
-    constructor({ seasons, divisions, divisionPlayers, matches }) {
+    constructor({
+        seasons,
+        divisions,
+        divisionPlayers,
+        matches,
+        statsDb = supabase,
+    }) {
         this.seasons = seasons;
         this.divisions = divisions;
         this.divisionPlayers = divisionPlayers;
         this.matches = matches;
+        this.statsDb = statsDb;
+    }
+
+    async getPlayerAveragesFromConfirmed(confirmedMatches) {
+        const matchEntries = confirmedMatches
+            .map((match) => {
+                const result = normalizeMatchResult(match);
+                const autodartsMatchId = result?.proof_url
+                    ? extractAutodartsMatchId(result.proof_url)
+                    : null;
+                return autodartsMatchId
+                    ? { match, result, autodartsMatchId }
+                    : null;
+            })
+            .filter(Boolean);
+        const matchIds = [
+            ...new Set(
+                matchEntries.map((entry) => entry.autodartsMatchId)
+            ),
+        ];
+        if (matchIds.length === 0) return new Map();
+
+        let data;
+        let error;
+        try {
+            ({ data, error } = await this.statsDb
+                .from("autodarts_match_stats_cache")
+                .select("match_id, stats")
+                .in("match_id", matchIds));
+        } catch (queryError) {
+            console.warn(
+                "Could not load averages for standings:",
+                queryError
+            );
+            return new Map();
+        }
+        if (error || !data) {
+            console.warn(
+                "Could not load averages for standings:",
+                error?.message ?? error
+            );
+            return new Map();
+        }
+
+        const statsByMatchId = new Map(
+            data.map((row) => [String(row.match_id), row.stats])
+        );
+        const valuesByPlayer = new Map();
+
+        for (const entry of matchEntries) {
+            try {
+                const rawStats = statsByMatchId.get(
+                    String(entry.autodartsMatchId)
+                );
+                const stats =
+                    typeof rawStats === "string"
+                        ? JSON.parse(rawStats)
+                        : rawStats;
+                const matchStats =
+                    stats?.stats?.matchStats ??
+                    stats?.matchStats ??
+                    stats;
+                if (!Array.isArray(matchStats) || matchStats.length < 2) {
+                    continue;
+                }
+
+                for (const playerId of [
+                    entry.match.player_a_id,
+                    entry.match.player_b_id,
+                ]) {
+                    const playerStats = findPlayerStatsByLegsWon({
+                        matchStats,
+                        legsA: entry.result.legs_a,
+                        legsB: entry.result.legs_b,
+                        playerAId: entry.match.player_a_id,
+                        targetPlayerId: playerId,
+                    });
+                    if (playerStats?.average == null) continue;
+                    const average = Number(playerStats.average);
+                    if (!Number.isFinite(average)) continue;
+                    if (!valuesByPlayer.has(playerId)) {
+                        valuesByPlayer.set(playerId, []);
+                    }
+                    valuesByPlayer.get(playerId).push(average);
+                }
+            } catch (error) {
+                console.warn(
+                    `Could not parse stats for match ${entry.match.id}:`,
+                    error
+                );
+            }
+        }
+
+        return new Map(
+            [...valuesByPlayer.entries()].map(([playerId, values]) => [
+                playerId,
+                values.reduce((sum, value) => sum + value, 0) /
+                    values.length,
+            ])
+        );
     }
 
     /**
@@ -196,22 +359,17 @@ export class StandingsService {
                 }
             }
 
+            const playerAverages =
+                await this.getPlayerAveragesFromConfirmed(confirmed);
+
             // compute leg diff + sort
             const rows = [...table.values()].map((r) => ({
                 ...r,
                 legDiff: r.legsFor - r.legsAgainst,
+                average: playerAverages.get(r.discordUserId) ?? null,
             }));
 
-            rows.sort((x, y) => {
-                // points desc
-                if (y.points !== x.points) return y.points - x.points;
-                // leg diff desc
-                if (y.legDiff !== x.legDiff) return y.legDiff - x.legDiff;
-                // legs for desc
-                if (y.legsFor !== x.legsFor) return y.legsFor - x.legsFor;
-                // name asc
-                return String(x.name).localeCompare(String(y.name));
-            });
+            sortStandingsRows(rows);
 
             out.push({
                 division: div,
@@ -356,17 +514,15 @@ export class StandingsService {
             }
         }
 
+        const playerAverages =
+            await this.getPlayerAveragesFromConfirmed(confirmed);
         const rows = [...table.values()].map((r) => ({
             ...r,
             legDiff: r.legsFor - r.legsAgainst,
+            average: playerAverages.get(r.discordUserId) ?? null,
         }));
 
-        rows.sort((x, y) => {
-            if (y.points !== x.points) return y.points - x.points;
-            if (y.legDiff !== x.legDiff) return y.legDiff - x.legDiff;
-            if (y.legsFor !== x.legsFor) return y.legsFor - x.legsFor;
-            return String(x.name).localeCompare(String(y.name));
-        });
+        sortStandingsRows(rows);
 
         return { season, standings: rows };
     }
