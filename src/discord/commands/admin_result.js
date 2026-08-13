@@ -43,7 +43,7 @@ export const data = new SlashCommandBuilder()
         opt
             .setName("url")
             .setDescription(
-                "Autodarts match link (optional; omit for forfeits with no match)"
+                "Autodarts.com match URL (optional; omit for forfeits)"
             )
             .setRequired(false)
     )
@@ -63,7 +63,7 @@ export const data = new SlashCommandBuilder()
  */
 function validateAutodartsMatchUrl(url) {
     const regex =
-        /^https:\/\/play\.autodarts\.io\/history\/matches\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+        /^https:\/\/play\.autodarts\.com\/history\/matches\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
     return regex.test(url);
 }

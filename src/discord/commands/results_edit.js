@@ -5,6 +5,7 @@ import {
     PermissionFlagsBits,
 } from "discord.js";
 import { DomainError } from "../../utils/DomainError.js";
+import { extractAutodartsMatchId } from "../../utils/autodarts.js";
 
 /**
  * Discord slash command: /result-edit
@@ -34,7 +35,7 @@ export const data = new SlashCommandBuilder()
     .addStringOption((opt) =>
         opt
             .setName("url")
-            .setDescription("Proof URL (optional)")
+            .setDescription("Autodarts.com match URL (optional)")
             .setRequired(false)
     )
     .setDefaultMemberPermissions(PermissionFlagsBits.Administrator);
@@ -51,6 +52,14 @@ export async function execute(interaction) {
     const legsA = interaction.options.getInteger("legs_a", true);
     const legsB = interaction.options.getInteger("legs_b", true);
     const url = interaction.options.getString("url", false);
+
+    if (url && !extractAutodartsMatchId(url)) {
+        await interaction.reply({
+            content: "❌ Match URL must be a valid Autodarts.com match link.",
+            flags: MessageFlags.Ephemeral,
+        });
+        return;
+    }
 
     await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
