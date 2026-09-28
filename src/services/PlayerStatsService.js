@@ -7,6 +7,7 @@ import { supabase } from "../db/supabase.js";
  * @property {number} played
  * @property {number} wins
  * @property {number} losses
+ * @property {number} draws
  * @property {number} legsFor
  * @property {number} legsAgainst
  * @property {number} legDiff
@@ -20,6 +21,7 @@ import { supabase } from "../db/supabase.js";
  * @typedef {Object} HeadToHeadRecord
  * @property {number} wins
  * @property {number} losses
+ * @property {number} draws
  * @property {number} legsFor
  * @property {number} legsAgainst
  * @property {Array.<Object>} recentMatches
@@ -119,6 +121,7 @@ export class PlayerStatsService {
         const record = {
             wins: 0, // wins for playerAId
             losses: 0, // losses for playerAId
+            draws: 0,
             legsFor: 0, // legs for playerAId
             legsAgainst: 0, // legs against playerAId
             recentMatches: [],
@@ -141,8 +144,10 @@ export class PlayerStatsService {
 
             if (playerALegs > playerBLegs) {
                 record.wins += 1;
-            } else {
+            } else if (playerALegs < playerBLegs) {
                 record.losses += 1;
+            } else {
+                record.draws += 1;
             }
 
             record.recentMatches.push({
@@ -152,6 +157,7 @@ export class PlayerStatsService {
                 playerLegs: playerALegs,
                 opponentLegs: playerBLegs,
                 won: playerALegs > playerBLegs,
+                drawn: playerALegs === playerBLegs,
                 proofUrl: mr.proof_url,
             });
         }
@@ -190,6 +196,7 @@ export class PlayerStatsService {
             played: 0,
             wins: 0,
             losses: 0,
+            draws: 0,
             legsFor: 0,
             legsAgainst: 0,
             legDiff: 0,
@@ -218,9 +225,12 @@ export class PlayerStatsService {
             if (playerLegs > opponentLegs) {
                 stats.wins += 1;
                 stats.points += playerLegs + 2; // 1 per leg + 2 win bonus
-            } else {
+            } else if (playerLegs < opponentLegs) {
                 stats.losses += 1;
                 stats.points += playerLegs; // 1 per leg
+            } else {
+                stats.draws += 1;
+                stats.points += playerLegs; // No win bonus; 0–0 awards zero.
             }
         }
 
@@ -261,6 +271,7 @@ export class PlayerStatsService {
                     playerLegs,
                     opponentLegs,
                     won: playerLegs > opponentLegs,
+                    drawn: playerLegs === opponentLegs,
                     proofUrl: mr.proof_url,
                 };
             })
@@ -282,7 +293,7 @@ export class PlayerStatsService {
 
         // Try to fetch stats for recent matches
         for (const match of recentMatches) {
-            if (!match.proofUrl) continue;
+            if (!match.proofUrl || match.drawn) continue;
 
             try {
                 const matchId = extractAutodartsMatchId(match.proofUrl);

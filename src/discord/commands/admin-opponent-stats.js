@@ -112,15 +112,15 @@ export async function execute(interaction) {
             .setTimestamp();
 
         // Head-to-head record (from player1's perspective)
-        const totalH2H = record.wins + record.losses;
+        const totalH2H = record.wins + record.losses + record.draws;
         const h2hWinRate =
             totalH2H > 0 ? ((record.wins / totalH2H) * 100).toFixed(1) : "0.0";
         embed.addFields({
             name: "📊 Head-to-Head Record",
             value: [
                 `**Matches:** ${totalH2H} played`,
-                `**${player1DisplayName}:** ${record.wins}W - ${record.losses}L (${h2hWinRate}% win rate)`,
-                `**${player2DisplayName}:** ${record.losses}W - ${record.wins}L (${(100 - parseFloat(h2hWinRate)).toFixed(1)}% win rate)`,
+                `**${player1DisplayName}:** ${record.wins}W - ${record.losses}L${record.draws ? ` - ${record.draws}D` : ""} (${h2hWinRate}% win rate)`,
+                `**${player2DisplayName}:** ${record.losses}W - ${record.wins}L${record.draws ? ` - ${record.draws}D` : ""} (${(totalH2H > 0 ? (record.losses / totalH2H) * 100 : 0).toFixed(1)}% win rate)`,
                 `**Legs:** ${record.legsFor} - ${record.legsAgainst} (${player1DisplayName} advantage)`,
             ].join("\n"),
             inline: false,
@@ -134,7 +134,7 @@ export async function execute(interaction) {
         embed.addFields({
             name: `🎯 ${player1DisplayName} — Overall`,
             value: [
-                `**Record:** ${player1Stats.wins}W - ${player1Stats.losses}L (${player1WinRate}% win rate)`,
+                `**Record:** ${player1Stats.wins}W - ${player1Stats.losses}L${player1Stats.draws ? ` - ${player1Stats.draws}D` : ""} (${player1WinRate}% win rate)`,
                 `**Matches:** ${player1Stats.played} played`,
                 `**Legs:** ${player1Stats.legsFor} for, ${player1Stats.legsAgainst} against`,
                 player1Stats.average
@@ -154,7 +154,7 @@ export async function execute(interaction) {
         embed.addFields({
             name: `🎯 ${player2DisplayName} — Overall`,
             value: [
-                `**Record:** ${player2Stats.wins}W - ${player2Stats.losses}L (${player2WinRate}% win rate)`,
+                `**Record:** ${player2Stats.wins}W - ${player2Stats.losses}L${player2Stats.draws ? ` - ${player2Stats.draws}D` : ""} (${player2WinRate}% win rate)`,
                 `**Matches:** ${player2Stats.played} played`,
                 `**Legs:** ${player2Stats.legsFor} for, ${player2Stats.legsAgainst} against`,
                 player2Stats.average
@@ -188,8 +188,8 @@ export async function execute(interaction) {
             embed.addFields({
                 name: `📅 Current Season: ${season.name}`,
                 value: [
-                    `**${player1DisplayName}:** ${player1SeasonStats.wins}W - ${player1SeasonStats.losses}L (${player1SeasonWinRate}%)`,
-                    `**${player2DisplayName}:** ${player2SeasonStats.wins}W - ${player2SeasonStats.losses}L (${player2SeasonWinRate}%)`,
+                    `**${player1DisplayName}:** ${player1SeasonStats.wins}W - ${player1SeasonStats.losses}L${player1SeasonStats.draws ? ` - ${player1SeasonStats.draws}D` : ""} (${player1SeasonWinRate}%)`,
+                    `**${player2DisplayName}:** ${player2SeasonStats.wins}W - ${player2SeasonStats.losses}L${player2SeasonStats.draws ? ` - ${player2SeasonStats.draws}D` : ""} (${player2SeasonWinRate}%)`,
                 ].join("\n"),
                 inline: false,
             });
@@ -198,7 +198,7 @@ export async function execute(interaction) {
         // Recent head-to-head matches
         if (record.recentMatches.length > 0) {
             const recentLines = record.recentMatches.slice(0, 5).map((m) => {
-                const result = m.won ? "✅" : "❌";
+                const result = m.drawn ? "➖" : m.won ? "✅" : "❌";
                 return `${result} **${m.playerLegs}-${m.opponentLegs}** (Week ${m.week})`;
             });
 

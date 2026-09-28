@@ -12,11 +12,41 @@ export class ResultService {
      * @param {MatchResultRepository} deps.matchResults Match result repository instance.
      * @param {PlayersRepository} deps.players Player repository instance.
      */
-    constructor({ seasons, matches, matchResults, players }) {
+    constructor({ seasons, matches, matchResults, players, divisions }) {
         this.seasons = seasons;
         this.matches = matches;
         this.matchResults = matchResults;
         this.players = players;
+        this.divisions = divisions;
+    }
+
+    /**
+     * Void remaining games in one division. Confirmed games are never selected.
+     * Voids award no points and are excluded from played/won/lost and stats.
+     * Result cleanup is retryable; a cleanup failure cannot restore open games.
+     */
+    async adminVoidRemainingDivision({ guildId, divisionName }) {
+        const season = await this.seasons.getCurrentForGuild(guildId);
+        if (!season) throw new DomainError("NO_SEASON", "No season found.");
+        if (!["active", "closed"].includes(season.status)) {
+            throw new DomainError("INVALID_STATE", "Season must be active or closed to void remaining games.");
+        }
+        const name = String(divisionName ?? "").trim();
+        const normalized = /^\d+$/.test(name) ? `Div ${name}` : name;
+        const division = await this.divisions.getBySeasonAndName(season.id, normalized);
+        if (!division) throw new DomainError("BAD_DIVISION", `Division not found: ${normalized}`);
+
+        const scope = { seasonId: season.id, divisionId: division.id };
+        const updated = await this.matches.voidRemainingForDivision(scope);
+        let cleanupFailed = false;
+        try {
+            const voided = await this.matches.listVoidedForDivision(scope);
+            await this.matchResults.deleteByMatchIds(voided.map((match) => match.id));
+        } catch (error) {
+            cleanupFailed = true;
+            console.error("Division games voided, but result cleanup failed:", error);
+        }
+        return { season, division, updated, cleanupFailed };
     }
 
     /**
