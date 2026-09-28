@@ -25,6 +25,17 @@ export class MatchResultsRepository {
         this.supabase = supabase.schema(schema);
     }
 
+    /** Remove results for a bounded set of voided matches. */
+    async deleteByMatchIds(matchIds) {
+        for (let start = 0; start < matchIds.length; start += 100) {
+            const { error } = await this.supabase
+                .from("match_results")
+                .delete()
+                .in("match_id", matchIds.slice(start, start + 100));
+            if (error) throw error;
+        }
+    }
+
     /**
      * Get match result by match ID.
      * @param {string|number} matchId

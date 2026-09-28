@@ -323,4 +323,21 @@ This document provides an overview of all Discord slash commands available in th
 ### Development
 - `/resultdev` - Test with fake players
 - `/ping` - Test command
+# End-of-season division void
+
+`/division-void division:1` (or `division:Div 1`) voids every scheduled,
+reported and disputed game in that division of the current season. Requires
+Discord Administrator permission or the configured admin user/role. The season
+must be active or closed. Confirmed games and other divisions are unchanged.
+
+Voided games display as 0–0 with no points, but are **not played draws**: they
+are excluded from played/won/lost totals, standings fixture totals, overdue
+lists and performance statistics. Pending result rows are deleted. Normal result
+submission still rejects draws; existing confirmed 0–0 rows award no points
+and are treated as draws by player/head-to-head statistics.
+
+The command refreshes standings, fixtures and stats leaders. It can be repeated
+to finish result cleanup or retry failed message refreshes. No schema migration
+is required. Register commands with `node scripts/registerCommands.js` and
+restart the bot after deploying the code.
 

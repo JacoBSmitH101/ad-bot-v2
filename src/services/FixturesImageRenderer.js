@@ -80,7 +80,7 @@ function statusTheme(status) {
             };
         case "void":
             return {
-                label: "VOID",
+                label: "VOID · 0 PTS",
                 colour: "#64748b",
                 text: "#cbd5e1",
                 fill: "rgba(100,116,139,0.09)",
@@ -127,7 +127,7 @@ export async function renderFixturesImage({
     const height =
         overdueStartY + overdueRows.length * ROW_HEIGHT + FOOTER_HEIGHT;
     const completed = rows.filter(
-        (match) => match.status === "confirmed"
+        (match) => ["confirmed", "void"].includes(match.status)
     ).length;
 
     const renderRows = (items, startY, { overdue = false } = {}) =>
@@ -144,7 +144,9 @@ export async function renderFixturesImage({
                       stroke: "rgba(251,113,133,0.22)",
                   }
                 : statusTheme(match.status);
-            const result = normalizeResult(match);
+            const result = match.status === "void"
+                ? { legsA: 0, legsB: 0 }
+                : normalizeResult(match);
             const playerA = truncate(
                 nameById.get(match.player_a_id) ?? match.player_a_id
             );
@@ -320,7 +322,7 @@ export async function renderFixturesImage({
             ${text({
                 x: 32,
                 y: height - 25,
-                value: "Cyan: to play · Amber: reported · Green: confirmed · Red: overdue",
+                value: "Cyan: to play · Amber: reported · Green: confirmed · Grey: void · Red: overdue",
                 size: 14,
                 fill: "#64748b",
             })}

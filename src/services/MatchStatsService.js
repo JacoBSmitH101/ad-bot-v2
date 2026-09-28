@@ -31,6 +31,8 @@ function pctOrNullDecimalToPercent(v) {
  * @throws {DomainError} If scores array is missing or malformed.
  */
 function alignMatchStatsByScores({ matchStats, scores, legsA, legsB }) {
+    // Equal scores cannot identify which Autodarts player belongs to A or B.
+    if (Number(legsA) === Number(legsB)) return { A: null, B: null, aligned: false };
     const ms0 = matchStats?.[0];
     const ms1 = matchStats?.[1];
     if (!ms0 || !ms1) return { A: ms0 ?? null, B: ms1 ?? null, aligned: false };
