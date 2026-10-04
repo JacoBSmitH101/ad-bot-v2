@@ -42,9 +42,9 @@ export async function renderSeasonSummaryImage(summary) {
     const moves = summary.moves.map((group, index) => {
         const x = 40 + index % 2 * 610;
         const y = moveY + 58 + Math.floor(index / 2) * 94;
-        return `${label(x, y, shorten(`${group.from} → ${group.to}`, 48), 14, '#94a3b8', 600)}
+        return `${label(x, y, shorten(`${group.from} → ${group.to}`, 48), 14, '#d49a9f', 600)}
             ${group.players.map((player, i) => label(x, y + 27 + i * 26, name(player, 49), 18, '#aebbc9')).join('')}`;
-    }).join('') || label(40, moveY + 65, 'No other division moves.', 18, '#94a3b8');
+    }).join('') || label(40, moveY + 65, 'No relegations to show.', 18, '#94a3b8');
     const footer = summary.provisional
         ? `Provisional · Based on confirmed results${summary.outstanding ? ` · ${summary.outstanding} fixtures outstanding` : ''}`
         : 'Based on final standings · Next-season divisions remain subject to signups';
@@ -61,8 +61,8 @@ export async function renderSeasonSummaryImage(summary) {
         ${cards}
         ${label(40, promotionY + 12, summary.provisional ? 'IN THE PROMOTION PLACES' : 'MOVING UP', 19, '#6ee7b7', 700, 'letter-spacing="2"')}
         ${promotions}
-        <path d="M40 ${moveY - 16}h1200" stroke="#263445"/>
-        ${label(40, moveY + 12, summary.provisional ? 'Other division places' : 'Next season · Division moves', 19, '#aebbc9', 600)}
+        <path d="M40 ${moveY - 16}h1200" stroke="#263445"/><rect x="40" y="${moveY - 17}" width="110" height="3" rx="1.5" fill="#fb7185" opacity=".8"/>
+        ${label(40, moveY + 12, summary.provisional ? 'Relegation places · Provisional' : 'Relegation', 19, '#fda4af', 600)}
         ${moves}
         ${label(40, height - 61, 'Thank you to every player. See you at the oche.', 20, '#cbd5e1', 600)}
         ${label(40, height - 26, footer, 14, '#8493a7')}

@@ -203,7 +203,7 @@
 - **Default:** Generates a private, downloadable PNG for the latest active or closed season, including when a newer season is in draft/signups.
 - **`publish: true`:** Posts the graphic and a short congratulations message in the current channel.
 - **`season-id`:** Optional existing season ID for regenerating a previous season from this server.
-- **Design:** Gold division-winner cards, green promotion cards, and a smaller neutral “Division moves” section for relegations, matching the existing dark standings graphics.
+- **Design:** Gold division-winner cards, green promotion cards, and a smaller “Relegation” section with a restrained red heading and accent, matching the existing dark standings graphics.
 - **Rules:** Existing standings/tiebreakers; top two move up except in the top division, bottom two move down except in the lowest division. Champions and promoted players are never also shown moving down in unusually small divisions.
 - **Provisional:** Active seasons, outstanding fixtures, or divisions without confirmed results are explicitly marked as provisional. Final labels require a closed season with completed standings.
 - **Effects:** Reads standings once. Does not close the season, change next-season assignments, or replace published standings. Final divisions remain subject to signups.
