@@ -1,7 +1,8 @@
+import { demoDeadlines } from './demoDeadlines.js';
 import { randomUUID } from 'node:crypto';
 import {
     ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, MessageFlags,
-    ModalBuilder, TextInputBuilder, TextInputStyle,
+    ModalBuilder, TextInputBuilder, TextInputStyle, escapeMarkdown,
 } from 'discord.js';
 
 const sessions = new Map();
@@ -17,7 +18,7 @@ export function createAvailabilityDemo(ownerId, screen = 'availability') {
     const state = {
         id: randomUUID(), ownerId, screen: screens.has(screen) ? screen : 'availability',
         expires: Date.now() + TTL, own: null, other: null, revealed: false,
-        holiday: null, extension: 'Awaiting your response', admin: 'Needs review', messageId: null,
+        holiday: null, holidayReason: '', unavailableReason: '', dates: demoDeadlines(), extension: 'Awaiting your response', admin: 'Needs review', messageId: null,
     };
     sessions.set(state.id, state);
     return state;
@@ -39,30 +40,34 @@ export function availabilityDemoMessage(state) {
             .addFields(
                 { name: 'You · Player1', value: state.own ?? 'Not answered', inline: true },
                 { name: 'Player2', value: visibleOther, inline: true },
-                { name: state.revealed ? 'Both answers are now visible' : 'Your answer stays private',
-                    value: state.revealed ? 'Changes stay visible. Availability does not award a win or change your deadline.' : 'Both answers appear together once you have both responded. No reply is not a forfeit.' },
+                { name: 'Play by', value: state.dates.original },
             );
         if (state.holiday) embed.addFields({ name: 'Your sample holiday', value: `${state.holiday} days away. Dates would be public; this does not change your weekly answer or grant an extension.` });
+        if (state.unavailableReason) embed.addFields({ name: 'Your unavailable reason', value: escapeMarkdown(state.unavailableReason) });
+        if (state.holidayReason) embed.addFields({ name: 'Your holiday reason', value: escapeMarkdown(state.holidayReason) });
         actions = [row(button(state, 'available', 'Available', ButtonStyle.Success),
             button(state, 'unavailable', 'Not this week'), button(state, 'holiday', 'Set holiday')),
         row(button(state, 'opponent', 'Simulate opponent reply', ButtonStyle.Primary), button(state, 'reset', 'Reset sample'))];
     } else if (state.screen === 'extension') {
-        embed.setColor(0xfbbf24).setTitle('Player1 requested 3 extra days')
+        embed.setColor(0xfbbf24).setTitle('Player1 requested a one-week extension')
             .setDescription('**You are Player2 in this sample.**\nExample fixture: Player1 vs Player2 · Week 3')
-            .addFields({ name: 'Original deadline', value: 'Sunday · 20:00', inline: true },
-                { name: 'Proposed deadline', value: 'Wednesday · 20:00', inline: true },
+            .addFields({ name: 'Fixture release', value: state.dates.released },
+                { name: 'Original deadline', value: state.dates.original, inline: true },
+                { name: 'Proposed deadline', value: state.dates.extended, inline: true },
                 { name: 'Request status', value: state.extension },
-                { name: 'Proposed rule', value: 'First extension of up to 7 days: approved if both agree before the deadline and within the season cutoff. Otherwise an admin reviews it. Example times only.' });
+                { name: 'Proposed rule', value: 'The standard deadline is the Sunday after fixture release. An extension adds one week. This demo still uses mutual agreement; exceptions go to an admin.' });
         actions = [row(button(state, 'agree', 'Agree', ButtonStyle.Success), button(state, 'decline', 'Can’t agree'), button(state, 'review', 'Ask admin'))];
     } else {
         embed.setColor(0xfda4af).setTitle('Admin review · Player3 vs Player4')
-            .setDescription('**Sample case:** Player3 requested 3 extra days; Player4 could not agree.')
+            .setDescription('**Sample case:** Player3 requested a one-week extension; Player4 could not agree.')
             .addFields({ name: 'Availability', value: 'Player3: Not this week\nPlayer4: Available', inline: true },
                 { name: 'Holiday record', value: 'Player3: 4 days away\nDeclared before the deadline', inline: true },
+                { name: 'Original deadline', value: state.dates.original, inline: true },
+                { name: 'Extended deadline', value: state.dates.extended, inline: true },
                 { name: 'Decision', value: state.admin },
                 { name: 'Attendance flag', value: 'Player3 has 3 unresolved fixtures to review. No automatic disqualification or forfeit.' });
-        actions = [row(button(state, 'history', 'View history'), button(state, 'approve', 'Approve +3 days', ButtonStyle.Success), button(state, 'keep', 'Keep original deadline'))];
-        if (state.history) embed.addFields({ name: 'Sample history', value: 'Mon 09:00 · Holiday declared\nMon 12:00 · Both availability answers revealed\nTue 18:00 · Player3 requested +3 days\nTue 19:00 · Player4 could not agree' });
+        actions = [row(button(state, 'history', 'View history'), button(state, 'approve', 'Approve +1 week', ButtonStyle.Success), button(state, 'keep', 'Keep original deadline'))];
+        if (state.history) embed.addFields({ name: 'Sample history', value: 'Holiday declared\nBoth availability answers revealed\nPlayer3 requested +1 week\nPlayer4 could not agree' });
     }
     return { embeds: [embed], components: [...actions, row(
         button(state, 'availability', 'Weekly DM'), button(state, 'extension', 'Extension request'), button(state, 'admin', 'Admin review'))], allowedMentions: { parse: [] } };
@@ -81,7 +86,16 @@ export async function handleAvailabilityDemo(interaction) {
             return true;
         }
         if (interaction.isModalSubmit()) {
-            if (action !== 'holiday-submit') return true;
+            if (!['holiday-submit', 'unavailable-submit'].includes(action)) return true;
+            const reason = interaction.fields.getTextInputValue('reason').trim().slice(0, 300);
+            if (action === 'unavailable-submit') {
+                state.own = 'Not this week';
+                state.unavailableReason = reason;
+                state.screen = 'availability';
+                if (state.other) state.revealed = true;
+                await interaction.update(availabilityDemoMessage(state));
+                return true;
+            }
             const raw = interaction.fields.getTextInputValue('days').trim();
             const days = Number(raw);
             if (!/^\d{1,2}$/.test(raw) || days < 1 || days > 14) {
@@ -89,29 +103,42 @@ export async function handleAvailabilityDemo(interaction) {
                 return true;
             }
             state.holiday = days;
+            state.holidayReason = reason;
             state.screen = 'availability';
             // Component-launched modal submissions update their originating DM.
             await interaction.update(availabilityDemoMessage(state));
+            return true;
+        }
+        const reasonInput = (value = '') => {
+            const input = new TextInputBuilder().setCustomId('reason').setLabel('Reason (optional)')
+                .setStyle(TextInputStyle.Paragraph).setRequired(false).setMaxLength(300);
+            if (value) input.setValue(value);
+            return new ActionRowBuilder().addComponents(input);
+        };
+        if (action === 'unavailable') {
+            const modal = new ModalBuilder().setCustomId(`${PREFIX}${id}:unavailable-submit`)
+                .setTitle('Not available this week')
+                .addComponents(reasonInput(state.unavailableReason));
+            await interaction.showModal(modal);
             return true;
         }
         if (action === 'holiday') {
             const modal = new ModalBuilder().setCustomId(`${PREFIX}${id}:holiday-submit`).setTitle('Sample holiday · no real booking')
                 .addComponents(new ActionRowBuilder().addComponents(new TextInputBuilder()
                     .setCustomId('days').setLabel('Days away (1–14)').setStyle(TextInputStyle.Short)
-                    .setRequired(true).setMaxLength(2).setPlaceholder('4')));
+                    .setRequired(true).setMaxLength(2).setPlaceholder('4')), reasonInput(state.holidayReason));
             await interaction.showModal(modal);
             return true;
         }
         if (screens.has(action)) state.screen = action;
-        else if (action === 'available') state.own = 'Available';
-        else if (action === 'unavailable') state.own = 'Not this week';
+        else if (action === 'available') { state.own = 'Available'; state.unavailableReason = ''; }
         else if (action === 'opponent') state.other = state.other === 'Available' ? 'Not this week' : 'Available';
-        else if (action === 'reset') Object.assign(state, { own: null, other: null, revealed: false, holiday: null });
-        else if (action === 'agree') state.extension = 'Approved in this demo · Wednesday 20:00';
+        else if (action === 'reset') Object.assign(state, { own: null, other: null, revealed: false, holiday: null, holidayReason: '', unavailableReason: '' });
+        else if (action === 'agree') state.extension = `Approved in this demo · ${state.dates.extended}`;
         else if (action === 'decline') state.extension = 'Could not agree · Admin review needed. No win awarded.';
         else if (action === 'review') state.extension = 'Sent to the sample admin queue · Original deadline still applies.';
         else if (action === 'history') state.history = !state.history;
-        else if (action === 'approve') state.admin = 'Demo decision: +3 days approved. No real fixture changed.';
+        else if (action === 'approve') state.admin = `Demo decision: approved until ${state.dates.extended}. No real fixture changed.`;
         else if (action === 'keep') state.admin = 'Demo decision: original deadline kept. No result or forfeit recorded.';
         if (state.own && state.other) state.revealed = true;
         await interaction.update(availabilityDemoMessage(state));

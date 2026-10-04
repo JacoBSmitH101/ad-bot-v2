@@ -2,13 +2,56 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createAvailabilityDemo, availabilityDemoMessage, handleAvailabilityDemo, discardAvailabilityDemo } from '../src/discord/handlers/availabilityDemo.js';
 import { execute, data } from '../src/discord/commands/availability-test.js';
+import { demoDeadlines } from '../src/discord/handlers/demoDeadlines.js';
 
-function event(state, action, { user = state.ownerId, modal = false, days = '4', message = 'dm1' } = {}) {
+test('deadlines are next Sunday plus one week, with dates and no times', () => {
+    for (const [released, original, extended] of [
+        ['2026-10-04', 'Sunday 11 October 2026', 'Sunday 18 October 2026'],
+        ['2026-10-05', 'Sunday 11 October 2026', 'Sunday 18 October 2026'],
+        ['2026-12-27', 'Sunday 3 January 2027', 'Sunday 10 January 2027'],
+        ['2026-03-28', 'Sunday 29 March 2026', 'Sunday 5 April 2026'],
+    ]) {
+        const dates = demoDeadlines(released);
+        assert.equal(dates.original, original); assert.equal(dates.extended, extended);
+    }
+});
+
+test('unavailable form accepts empty or supplied reason and only changes answer on submit', async () => {
+    const state = createAvailabilityDemo('owner'); state.messageId = 'dm1';
+    const open = event(state, 'unavailable'); await handleAvailabilityDemo(open);
+    assert.equal(state.own, null);
+    const form = open.calls.modal.toJSON();
+    assert.equal(form.components[0].components[0].required, false);
+    for (const reason of ['', 'Working late this week']) {
+        const input = event(state, 'unavailable-submit', {modal:true, reason});
+        await handleAvailabilityDemo(input);
+        assert.equal(state.own, 'Not this week'); assert.equal(state.unavailableReason, reason);
+    }
+    await handleAvailabilityDemo(event(state, 'available'));
+    assert.equal(state.unavailableReason, '');
+    discardAvailabilityDemo(state.id);
+});
+
+test('holiday reason is optional and privacy explanation is removed', async () => {
+    const state = createAvailabilityDemo('owner'); state.messageId = 'dm1';
+    const open = event(state, 'holiday'); await handleAvailabilityDemo(open);
+    assert.equal(open.calls.modal.toJSON().components[1].components[0].required, false);
+    await handleAvailabilityDemo(event(state, 'holiday-submit', {modal:true, reason:'Family trip'}));
+    assert.equal(state.holidayReason, 'Family trip');
+    assert(!JSON.stringify(availabilityDemoMessage(state)).includes('Your answer stays private'));
+    state.screen='extension';
+    assert(!JSON.stringify(availabilityDemoMessage(state)).includes('20:00'));
+    await handleAvailabilityDemo(event(state, 'agree'));
+    assert(state.extension.includes(state.dates.extended));
+    discardAvailabilityDemo(state.id);
+});
+
+function event(state, action, { user = state.ownerId, modal = false, days = '4', reason = '', message = 'dm1' } = {}) {
     const calls = {};
     return { calls, user: { id: user }, message: { id: message },
         customId: `availability-demo:${state.id}:${action}`,
         isButton: () => !modal, isModalSubmit: () => modal,
-        fields: { getTextInputValue: () => days },
+        fields: { getTextInputValue: key => key === 'days' ? days : reason },
         reply: async x => { calls.reply = x; }, update: async x => { calls.update = x; },
         showModal: async x => { calls.modal = x; },
     };
@@ -30,7 +73,7 @@ test('responses only reveal together and stay revealed after changes', async () 
     assert.match(availabilityDemoMessage(state).embeds[0].toJSON().fields[1].value, /Hidden/);
     await handleAvailabilityDemo(event(state, 'available'));
     assert.equal(state.revealed, true);
-    await handleAvailabilityDemo(event(state, 'unavailable'));
+    await handleAvailabilityDemo(event(state, 'unavailable-submit', {modal:true}));
     assert.equal(state.revealed, true);
     await handleAvailabilityDemo(event(state, 'reset'));
     assert.equal(state.revealed, false);
@@ -70,8 +113,9 @@ function command(admin, fail = false) {
         client:{services:{config:{}}}, memberPermissions:{has:()=>admin},
         options:{getString:()=>null}, reply:async x=>{calls.reply=x}, deferReply:async x=>{calls.defer=x}, editReply:async x=>{calls.edit=x} };
 }
-test('command denies non-admins and sends only to the invoking admin', async () => {
-    const denied=command(false);await execute(denied);assert.equal(denied.calls.sent,0);
+test('command allows ordinary members and admins and sends to the caller', async () => {
+    assert.equal(data.toJSON().default_member_permissions, undefined);
+    const member=command(false);await execute(member);assert.equal(member.calls.sent,1);assert.equal(member.calls.defer.flags,64);
     const admin=command(true);await execute(admin);assert.equal(admin.calls.sent,1);assert.equal(admin.calls.defer.flags,64);assert.match(admin.calls.edit,/Sent a sample/);
 });
 test('closed DMs receive a helpful private error', async () => {

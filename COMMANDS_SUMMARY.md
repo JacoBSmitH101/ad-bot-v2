@@ -211,9 +211,10 @@
 - **Offline tests:** `node --test tests/season-summary.test.js tests/readMatchStats.test.js`
 
 ### `/availability-test`
-- Admin-only command: DMs the person running it with an interactive native Discord embed using Player1/Player2 sample data.
+- Available to all server members: DMs the person running it with an interactive native Discord embed using Player1/Player2 sample data. Re-register commands when deploying to clear the old admin-only default permission.
 - Optional `screen`: Weekly availability (default), Extension request, or Admin review. Navigation buttons switch between all three in the same DM.
-- Weekly demo: answer, simulate the opponent replying, change answers, reset, or try the 1–14 day holiday form.
+- Weekly demo: answer, simulate the opponent replying, change answers, reset, or try the 1–14 day holiday form. Unavailable and holiday forms accept an optional reason.
+- Sample fixture release uses today in Europe/London. The standard deadline is the following Sunday (a Sunday release gets seven days); an extension adds another week. Deadlines show day and date without a time.
 - Extension/admin buttons edit sample state only. No Supabase reads/writes, public posts, real opponent messages, results, holidays, or deadlines are changed.
 - Samples expire after one hour or a bot restart. Only the invoking user can interact with their sample.
 - Available after the normal command-registration and deployment steps. No separate database migration is needed.
