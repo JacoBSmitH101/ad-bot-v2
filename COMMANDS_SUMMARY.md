@@ -209,3 +209,11 @@
 - **Effects:** Reads standings once. Does not close the season, change next-season assignments, or replace published standings. Final divisions remain subject to signups.
 - **Availability:** Discovered by the existing command loader and `scripts/registerCommands.js`. Register commands and deploy/restart the bot using the usual process. Development mode also starts the bot and registers commands, so do not use it just to test rendering.
 - **Offline tests:** `node --test tests/season-summary.test.js tests/readMatchStats.test.js`
+
+### `/availability-test`
+- Admin-only command: DMs the person running it with an interactive native Discord embed using Player1/Player2 sample data.
+- Optional `screen`: Weekly availability (default), Extension request, or Admin review. Navigation buttons switch between all three in the same DM.
+- Weekly demo: answer, simulate the opponent replying, change answers, reset, or try the 1–14 day holiday form.
+- Extension/admin buttons edit sample state only. No Supabase reads/writes, public posts, real opponent messages, results, holidays, or deadlines are changed.
+- Samples expire after one hour or a bot restart. Only the invoking user can interact with their sample.
+- Available after the normal command-registration and deployment steps. No separate database migration is needed.

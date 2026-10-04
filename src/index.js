@@ -1,3 +1,4 @@
+import { handleAvailabilityDemo } from './discord/handlers/availabilityDemo.js';
 import "dotenv/config";
 import fs from "fs";
 import path from "path";
@@ -222,6 +223,7 @@ client.once(Events.ClientReady, async () => {
 });
 
 client.on(Events.InteractionCreate, async (interaction) => {
+    if (await handleAvailabilityDemo(interaction)) return;
     if (interaction.isButton()) {
         if (await handleResultButtons(interaction)) return;
         if (await handleStandingsButtons(interaction)) return;
