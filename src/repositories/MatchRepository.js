@@ -52,6 +52,38 @@ export class MatchRepository {
         this.db = this.supabase;
     }
 
+    /** Atomically void only games that are still open in this season/division. */
+    async voidRemainingForDivision({ seasonId, divisionId }) {
+        const { data, error } = await this.supabase
+            .from("matches")
+            .update({
+                status: "void",
+                reported_by: null,
+                reported_at: null,
+                confirmed_by: null,
+                confirmed_at: null,
+                disputed_at: null,
+            })
+            .eq("season_id", seasonId)
+            .eq("division_id", divisionId)
+            .in("status", ["scheduled", "reported", "disputed"])
+            .select("*");
+        if (error) throw error;
+        return data ?? [];
+    }
+
+    /** Include previously voided games so a retry can finish result cleanup. */
+    async listVoidedForDivision({ seasonId, divisionId }) {
+        const { data, error } = await this.supabase
+            .from("matches")
+            .select("id")
+            .eq("season_id", seasonId)
+            .eq("division_id", divisionId)
+            .eq("status", "void");
+        if (error) throw error;
+        return data ?? [];
+    }
+
     /**
      * Insert multiple matches in bulk.
      * @param {Array.<Object>} rows Array of match objects to insert.

@@ -8,7 +8,7 @@
     "doc": "docs"
   },
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "test": "node --test tests/*.test.js",
     "dev": "node scripts/registerCommands.js && node src/index.js",
     "seed:fake": "node scripts/seedFakeSingups.js",
     "players:backfill-names": "node scripts/backfillPlayerDisplayNames.js",

@@ -93,7 +93,7 @@ export async function execute(interaction) {
             name: "🎯 Overall Stats (Since Season 6)",
             value: [
                 `**Matches:** ${overallStats.played} played`,
-                `**Record:** ${overallStats.wins}W - ${overallStats.losses}L (${winRate}% win rate)`,
+                `**Record:** ${overallStats.wins}W - ${overallStats.losses}L${overallStats.draws ? ` - ${overallStats.draws}D` : ""} (${winRate}% win rate)`,
                 `**Legs:** ${overallStats.legsFor} for, ${overallStats.legsAgainst} against (${overallStats.legDiff > 0 ? "+" : ""}${overallStats.legDiff} diff)`,
                 `**Points:** ${overallStats.points}`,
                 overallStats.average
@@ -121,7 +121,7 @@ export async function execute(interaction) {
                 name: `📅 Current Season: ${season.name}`,
                 value: [
                     `**Matches:** ${seasonStats.played} played`,
-                    `**Record:** ${seasonStats.wins}W - ${seasonStats.losses}L (${seasonWinRate}% win rate)`,
+                    `**Record:** ${seasonStats.wins}W - ${seasonStats.losses}L${seasonStats.draws ? ` - ${seasonStats.draws}D` : ""} (${seasonWinRate}% win rate)`,
                     `**Legs:** ${seasonStats.legsFor} for, ${seasonStats.legsAgainst} against (${seasonStats.legDiff > 0 ? "+" : ""}${seasonStats.legDiff} diff)`,
                     `**Points:** ${seasonStats.points}`,
                     seasonStats.average
@@ -140,7 +140,7 @@ export async function execute(interaction) {
         // Recent matches
         if (recentMatches.length > 0) {
             const recentLines = recentMatches.slice(0, 5).map((m) => {
-                const result = m.won ? "✅" : "❌";
+                const result = m.drawn ? "➖" : m.won ? "✅" : "❌";
                 const opponent = m.opponentId.startsWith("FAKE_")
                     ? `\`${m.opponentId}\``
                     : `<@${m.opponentId}>`;

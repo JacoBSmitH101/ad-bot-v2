@@ -94,6 +94,7 @@ client.services = {
         matchResults: client.repos.matchResults,
         players: client.repos.players,
         seasons: client.repos.seasons,
+        divisions: client.repos.divisions,
     }),
     seasons: new SeasonService({
         seasons: client.repos.seasons,

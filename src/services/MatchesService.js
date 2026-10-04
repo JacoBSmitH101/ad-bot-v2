@@ -32,6 +32,8 @@ function fmtPlayer(id) {
 }
 
 function statusIcon(status) {
+    if (status === "void") return "🚫";
+    if (status === "disputed") return "🔴";
     if (status === "confirmed") return "🟢";
     if (status === "reported") return "🟠";
     return "🗓️";
@@ -97,7 +99,7 @@ export class MatchesService {
 
         // ✅ compute nextMatchId BEFORE building weeks (fixes TDZ error)
         const nextMatch = matches
-            .filter((m) => m.status !== "confirmed")
+            .filter((m) => ["scheduled", "reported", "disputed"].includes(m.status))
             .sort((a, b) => {
                 const wa = a.week ?? 0;
                 const wb = b.week ?? 0;
@@ -139,7 +141,9 @@ export class MatchesService {
                     let scorePart = "";
                     let proofPart = "";
 
-                    if (mr) {
+                    if (m.status === "void") {
+                        scorePart = " — **0-0** (no points)";
+                    } else if (mr) {
                         const youLegs =
                             m.player_a_id === discordUserId
                                 ? mr.legs_a
@@ -154,12 +158,7 @@ export class MatchesService {
                             proofPart = ` ([Match Link](${mr.proof_url}))`;
                     }
 
-                    const statusText =
-                        m.status === "reported"
-                            ? "reported"
-                            : m.status === "confirmed"
-                            ? "confirmed"
-                            : "scheduled";
+                    const statusText = m.status;
 
                     const line = `${icon} vs ${fmtPlayer(
                         opp

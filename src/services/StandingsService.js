@@ -15,6 +15,7 @@ function findPlayerStatsByLegsWon({
     playerAId,
     targetPlayerId,
 }) {
+    if (Number(legsA) === Number(legsB)) return null;
     const first = matchStats?.[0];
     const second = matchStats?.[1];
     if (!first || !second) return null;
