@@ -1,3 +1,4 @@
+import { readMatchStats } from "../db/readMatchStats.js";
 import { DomainError } from "../utils/DomainError.js";
 import { AttachmentBuilder } from "discord.js";
 import { extractAutodartsMatchId } from "../utils/autodarts.js";
@@ -125,11 +126,11 @@ export class StatsLeadersPublisherService {
             if (!matchId) continue;
 
             // Query public schema cache table
-            const { data: cacheData, error: cacheError } = await supabase
+            const { data: cacheData, error: cacheError } = await readMatchStats((columns) => supabase
                 .from("autodarts_match_stats_cache")
-                .select("stats")
+                .select(columns)
                 .eq("match_id", matchId)
-                .maybeSingle();
+                .maybeSingle());
 
             if (cacheError || !cacheData) continue;
 

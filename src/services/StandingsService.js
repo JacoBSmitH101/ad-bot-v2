@@ -1,3 +1,4 @@
+import { readMatchStats } from "../db/readMatchStats.js";
 import { DomainError } from "../utils/DomainError.js";
 import { supabase } from "../db/supabase.js";
 import { extractAutodartsMatchId } from "../utils/autodarts.js";
@@ -119,10 +120,10 @@ export class StandingsService {
         let data;
         let error;
         try {
-            ({ data, error } = await this.statsDb
+            ({ data, error } = await readMatchStats((columns) => this.statsDb
                 .from("autodarts_match_stats_cache")
-                .select("match_id, stats")
-                .in("match_id", matchIds));
+                .select(columns)
+                .in("match_id", matchIds)));
         } catch (queryError) {
             console.warn(
                 "Could not load averages for standings:",

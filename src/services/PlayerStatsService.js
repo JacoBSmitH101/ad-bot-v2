@@ -1,3 +1,4 @@
+import { readMatchStats } from "../db/readMatchStats.js";
 import { DomainError } from "../utils/DomainError.js";
 import { extractAutodartsMatchId } from "../utils/autodarts.js";
 import { supabase } from "../db/supabase.js";
@@ -289,11 +290,11 @@ export class PlayerStatsService {
                 if (!matchId) continue;
 
                 // Query cache table if available
-                const { data, error } = await supabase
+                const { data, error } = await readMatchStats((columns) => supabase
                     .from("autodarts_match_stats_cache")
-                    .select("stats")
+                    .select(columns)
                     .eq("match_id", matchId)
-                    .maybeSingle();
+                    .maybeSingle());
 
                 if (error || !data) continue;
 
