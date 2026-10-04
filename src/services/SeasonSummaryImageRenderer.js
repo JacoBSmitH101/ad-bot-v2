@@ -1,3 +1,4 @@
+import { cleanGraphicName } from '../utils/cleanGraphicName.js';
 import sharp from 'sharp';
 
 const WIDTH = 1280;
@@ -10,7 +11,7 @@ const shorten = (value, max) => {
 };
 const label = (x, y, value, size = 22, fill = '#e2e8f0', weight = 500, extra = '') =>
     `<text x="${x}" y="${y}" font-family="'Segoe UI','DejaVu Sans',Arial,sans-serif" font-size="${size}" font-weight="${weight}" fill="${fill}" ${extra}>${xml(value)}</text>`;
-const name = (player, max = 27) => shorten(player?.name || player?.discordUserId, max);
+const name = (player, max = 27) => shorten(cleanGraphicName(player?.name) || player?.discordUserId || 'Player', max);
 const trophy = (x, y) => `<g transform="translate(${x} ${y})" fill="none" stroke="#fbbf24" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4h28v14c0 12-28 12-28 0z M12 8H4v8c0 8 8 10 12 10 M40 8h8v8c0 8-8 10-12 10 M26 28v12 M16 44h20 M20 40h12"/></g>`;
 
 /** Pure renderer; all rankings and movement rules are supplied by the model. */
@@ -46,7 +47,7 @@ export async function renderSeasonSummaryImage(summary) {
             ${group.players.map((player, i) => label(x, y + 27 + i * 26, name(player, 49), 18, '#aebbc9')).join('')}`;
     }).join('') || label(40, moveY + 65, 'No relegations to show.', 18, '#94a3b8');
     const footer = summary.provisional
-        ? `Provisional · Based on confirmed results${summary.outstanding ? ` · ${summary.outstanding} fixtures outstanding` : ''}`
+        ? `Based on confirmed results${summary.outstanding ? ` · ${summary.outstanding} fixtures outstanding` : ''}`
         : 'Based on final standings · Next-season divisions remain subject to signups';
     const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${WIDTH}" height="${height}" viewBox="0 0 ${WIDTH} ${height}">
         <defs><linearGradient id="page" x2="1" y2="1"><stop stop-color="#070c15"/><stop offset="1" stop-color="#0b1220"/></linearGradient>
@@ -56,15 +57,15 @@ export async function renderSeasonSummaryImage(summary) {
         <circle cx="1180" cy="30" r="230" fill="#22d3ee" opacity=".035"/>
         <circle cx="1030" cy="20" r="170" fill="#8b5cf6" opacity=".045"/>
         ${label(40, 53, shorten(summary.seasonName, 65).toUpperCase(), 16, '#67e8f9', 700, 'letter-spacing="2.5"')}
-        ${label(40, 114, summary.provisional ? 'Season honours · Preview' : 'What a season.', 48, '#ffffff', 700)}
+        ${label(40, 114, summary.provisional ? 'Season honours' : 'What a season.', 48, '#ffffff', 700)}
         ${label(40, 155, summary.provisional ? 'Current leaders and division places, based on confirmed results.' : 'Celebrating our champions and everyone taking the next step.', 21, '#a5b4c7')}
         ${cards}
         ${label(40, promotionY + 12, summary.provisional ? 'IN THE PROMOTION PLACES' : 'MOVING UP', 19, '#6ee7b7', 700, 'letter-spacing="2"')}
         ${promotions}
         <path d="M40 ${moveY - 16}h1200" stroke="#263445"/><rect x="40" y="${moveY - 17}" width="110" height="3" rx="1.5" fill="#fb7185" opacity=".8"/>
-        ${label(40, moveY + 12, summary.provisional ? 'Relegation places · Provisional' : 'Relegation', 19, '#fda4af', 600)}
+        ${label(40, moveY + 12, summary.provisional ? 'Relegation places' : 'Relegation', 19, '#fda4af', 600)}
         ${moves}
-        ${label(40, height - 61, 'Thank you to every player. See you at the oche.', 20, '#cbd5e1', 600)}
+        ${label(40, height - 61, 'Thank you to every player.', 20, '#cbd5e1', 600)}
         ${label(40, height - 26, footer, 14, '#8493a7')}
     </svg>`;
     return sharp(Buffer.from(svg)).png({ compressionLevel: 9 }).toBuffer();
