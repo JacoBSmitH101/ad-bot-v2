@@ -1,23 +1,17 @@
-import { MessageFlags, PermissionFlagsBits, SlashCommandBuilder } from 'discord.js';
+import { MessageFlags, SlashCommandBuilder } from 'discord.js';
 import { createAvailabilityDemo, availabilityDemoMessage, discardAvailabilityDemo } from '../handlers/availabilityDemo.js';
 
 export const data = new SlashCommandBuilder()
     .setName('availability-test')
-    .setDescription('[ADMIN] DM yourself an interactive availability demo with sample data')
-    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
+    .setDescription('DM yourself an interactive availability demo with sample data')
     .setDMPermission(false)
     .addStringOption(option => option.setName('screen').setDescription('Which sample to show first')
         .addChoices({ name: 'Weekly availability', value: 'availability' },
             { name: 'Extension request', value: 'extension' }, { name: 'Admin review', value: 'admin' }));
 
 export async function execute(interaction) {
-    const cfg = interaction.client.services.config;
-    const permitted = interaction.guildId && (
-        (cfg.adminUserId && interaction.user.id === cfg.adminUserId) ||
-        (cfg.adminRoleId && interaction.member?.roles?.cache?.has(cfg.adminRoleId)) ||
-        interaction.memberPermissions?.has(PermissionFlagsBits.Administrator));
-    if (!permitted) {
-        await interaction.reply({ content: 'Only league/server admins can run this test in the server.', flags: MessageFlags.Ephemeral });
+    if (!interaction.guildId) {
+        await interaction.reply({ content: 'Run /availability-test in the server to receive your sample DM.', flags: MessageFlags.Ephemeral });
         return;
     }
     await interaction.deferReply({ flags: MessageFlags.Ephemeral });
