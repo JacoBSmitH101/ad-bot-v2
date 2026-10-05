@@ -2,7 +2,7 @@ import { demoDeadlines } from './demoDeadlines.js';
 import { randomUUID } from 'node:crypto';
 import {
     ActionRowBuilder, ButtonBuilder, ButtonStyle, ContainerBuilder, TextDisplayBuilder, SeparatorBuilder, MessageFlags,
-    ModalBuilder, TextInputBuilder, TextInputStyle, escapeMarkdown,
+    ModalBuilder, TextInputBuilder, TextInputStyle, LabelBuilder, StringSelectMenuBuilder, escapeMarkdown,
 } from 'discord.js';
 
 const sessions = new Map();
@@ -17,7 +17,7 @@ export function createAvailabilityDemo(ownerId, screen = 'availability') {
     if (sessions.size >= 200) throw new Error('Too many active demos. Try again later.');
     const state = {
         id: randomUUID(), ownerId, screen: screens.has(screen) ? screen : 'availability',
-        expires: Date.now() + TTL, own: null, other: null, revealed: false,
+        expires: Date.now() + TTL, own: null, other: null, revealed: false, ownDays: [], availableNote: '', otherDays: [], otherNote: '',
         extensionRequested: false, extensionChoice: null, adminChoice: null, holiday: null, holidayReason: '', unavailableReason: '', dates: demoDeadlines(), extension: 'Awaiting your response', admin: 'Needs review', messageId: null,
     };
     sessions.set(state.id, state);
@@ -42,13 +42,23 @@ export function availabilityDemoMessage(state) {
         card.addTextDisplayComponents(text(state.own ? '### Answer saved: ' + (state.own === 'Available' ? 'you can play' : 'you can’t play this week') : '### Can you play by this date?'));
         card.addActionRowComponents(row(
             choiceButton(state, 'available', 'Yes, I can play', state.own === 'Available', ButtonStyle.Success),
-            choiceButton(state, 'unavailable', 'No, I can’t play', state.own === 'Not this week')));
+            choiceButton(state, 'unavailable', 'No, I can’t play', state.own === 'Not this week'),
+            ...(state.own === 'Available' ? [button(state, 'edit-days', 'Edit my days')] : [])));
         card.addActionRowComponents(row(button(state, 'holiday', state.holiday ? 'Holiday saved: ' + state.holiday + ' days' : 'I’m on holiday', state.holiday ? ButtonStyle.Primary : ButtonStyle.Secondary),
             button(state, 'extension-request', state.extensionRequested ? 'View your request' : 'Ask for another week')));
         divider();
         card.addTextDisplayComponents(text('**Your answer:** ' + (state.own ?? 'Not answered yet') +
             '\n**Player2’s answer:** ' + other));
         const notes = [];
+        const dayLabels = values => state.dates.days.filter(day => values.includes(day.value)).map(day => day.label).join(', ');
+        if (state.own === 'Available') {
+            notes.push('**Your days:** ' + (dayLabels(state.ownDays) || 'Not chosen yet'));
+            if (state.availableNote) notes.push('**Your note:** ' + escapeMarkdown(state.availableNote));
+        }
+        if (state.revealed && state.other === 'Available') {
+            notes.push('**Player2’s days:** ' + (dayLabels(state.otherDays) || 'Not chosen yet'));
+            if (state.otherNote) notes.push('**Player2’s note:** ' + escapeMarkdown(state.otherNote));
+        }
         if (state.extensionRequested) notes.push('### Extra time requested\nWaiting for Player2 to agree. Keep the original date for now.');
         if (state.holiday) notes.push('**Your holiday:** ' + state.holiday +
             ' days away. You still need to answer for this match. This does not add extra time.');
@@ -113,10 +123,27 @@ export async function handleAvailabilityDemo(interaction) {
             return true;
         }
         if (interaction.isModalSubmit()) {
+            if (action === 'available-submit') {
+                const selected = [...new Set(interaction.fields.getStringSelectValues('available-days'))];
+                if (selected.some(value => !state.dates.days.some(day => day.value === value))) {
+                    await interaction.reply({ content: 'Choose days from the list, then try again.', flags: MessageFlags.Ephemeral });
+                    return true;
+                }
+                state.ownDays = state.dates.days.filter(day => selected.includes(day.value)).map(day => day.value);
+                state.availableNote = interaction.fields.getTextInputValue('available-note').trim().slice(0, 300);
+                state.own = 'Available';
+                state.unavailableReason = '';
+                state.screen = 'availability';
+                if (state.other) state.revealed = true;
+                await interaction.update(availabilityDemoMessage(state));
+                return true;
+            }
             if (!['holiday-submit', 'unavailable-submit'].includes(action)) return true;
             const reason = interaction.fields.getTextInputValue('reason').trim().slice(0, 300);
             if (action === 'unavailable-submit') {
                 state.own = 'Not this week';
+                state.ownDays = [];
+                state.availableNote = '';
                 state.unavailableReason = reason;
                 state.screen = 'availability';
                 if (state.other) state.revealed = true;
@@ -142,6 +169,24 @@ export async function handleAvailabilityDemo(interaction) {
             if (value) input.setValue(value);
             return new ActionRowBuilder().addComponents(input);
         };
+        if (action === 'available' || action === 'edit-days') {
+            const days = new StringSelectMenuBuilder().setCustomId('available-days')
+                .setPlaceholder('Choose any days that suit you').setMinValues(0)
+                .setMaxValues(state.dates.days.length).setRequired(false)
+                .addOptions(state.dates.days.map(day => ({ ...day, default: state.ownDays.includes(day.value) })));
+            const note = new TextInputBuilder().setCustomId('available-note')
+                .setStyle(TextInputStyle.Paragraph).setRequired(false).setMaxLength(300)
+                .setPlaceholder('For example: usually after 7');
+            if (state.availableNote) note.setValue(state.availableNote);
+            const modal = new ModalBuilder().setCustomId(`${PREFIX}${id}:available-submit`)
+                .setTitle('When can you play?')
+                .addLabelComponents(new LabelBuilder().setLabel('Which days can you play?')
+                    .setDescription('Choose more than one, or leave blank if you’re not sure yet.')
+                    .setStringSelectMenuComponent(days),
+                    new LabelBuilder().setLabel('Anything else? (optional)').setTextInputComponent(note));
+            await interaction.showModal(modal);
+            return true;
+        }
         if (action === 'unavailable') {
             const modal = new ModalBuilder().setCustomId(`${PREFIX}${id}:unavailable-submit`)
                 .setTitle('Not available this week')
@@ -158,9 +203,12 @@ export async function handleAvailabilityDemo(interaction) {
             return true;
         }
         if (screens.has(action)) state.screen = action;
-        else if (action === 'available') { state.own = 'Available'; state.unavailableReason = ''; }
-        else if (action === 'opponent') state.other = state.other === 'Available' ? 'Not this week' : 'Available';
-        else if (action === 'reset') Object.assign(state, { own: null, other: null, revealed: false, holiday: null, holidayReason: '', unavailableReason: '', extensionRequested: false, extensionChoice: null, adminChoice: null, extension: 'Awaiting your response', admin: 'Needs review', history: false });
+        else if (action === 'opponent') {
+            state.other = state.other === 'Available' ? 'Not this week' : 'Available';
+            state.otherDays = state.other === 'Available' ? state.dates.days.slice(0, 2).map(day => day.value) : [];
+            state.otherNote = state.other === 'Available' ? 'Usually after 7' : '';
+        }
+        else if (action === 'reset') Object.assign(state, { own: null, other: null, revealed: false, ownDays: [], availableNote: '', otherDays: [], otherNote: '', holiday: null, holidayReason: '', unavailableReason: '', extensionRequested: false, extensionChoice: null, adminChoice: null, extension: 'Awaiting your response', admin: 'Needs review', history: false });
         else if (action === 'send-extension') state.extensionRequested = true;
         else if (action === 'agree') state.extension = `Agreed. Play by ${state.dates.extended}`;
         else if (action === 'decline') state.extension = 'You couldn’t agree. An admin will need to help.';
