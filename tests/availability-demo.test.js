@@ -82,7 +82,7 @@ test('responses only reveal together and stay revealed after changes', async () 
 test('holiday modal validates 1–14 without altering the weekly answer', async () => {
     const state = createAvailabilityDemo('owner'); state.messageId = 'dm1';
     const open = event(state, 'holiday'); await handleAvailabilityDemo(open);
-    assert.equal(open.calls.modal.toJSON().title, 'Sample holiday · no real booking');
+    assert.equal(open.calls.modal.toJSON().title, 'Your holiday (practice)');
     for (const days of ['0','15','-1','2.5','xx']) {
         const invalid = event(state, 'holiday-submit', { modal:true, days });
         await handleAvailabilityDemo(invalid); assert(invalid.calls.reply); assert.equal(state.holiday,null);

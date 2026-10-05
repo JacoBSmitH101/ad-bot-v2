@@ -30,39 +30,38 @@ const row = (...buttons) => new ActionRowBuilder().addComponents(...buttons);
 
 export function availabilityDemoMessage(state) {
     const embed = new EmbedBuilder().setColor(0x22d3ee)
-        .setAuthor({ name: 'League Bot · Interactive demo' })
-        .setFooter({ text: 'SAMPLE DATA ONLY • Nothing is saved to the league • Demo expires after 1 hour' });
+        .setAuthor({ name: 'League Bot' })
+        .setFooter({ text: 'SAMPLE DATA ONLY · Practice message · Lasts 1 hour' });
     let actions;
     if (state.screen === 'availability') {
-        const visibleOther = state.revealed ? state.other : 'Hidden until both players respond';
-        embed.setTitle('Week 3 · Your opponent: Player2')
-            .setDescription('**Season 9 · Division 1**\nCan you play your fixture this week?')
+        const visibleOther = state.revealed ? state.other : 'Hidden until you both answer';
+        embed.setTitle('Your match this week')
+            .setDescription('You’re playing **Player2**.\n**Can you play by the date below?**')
             .addFields(
-                { name: 'You · Player1', value: state.own ?? 'Not answered', inline: true },
-                { name: 'Player2', value: visibleOther, inline: true },
+                { name: 'Your answer', value: state.own ?? 'Choose an answer below', inline: true },
+                { name: 'Player2’s answer', value: visibleOther, inline: true },
                 { name: 'Play by', value: state.dates.original },
             );
-        if (state.holiday) embed.addFields({ name: 'Your sample holiday', value: `${state.holiday} days away. Dates would be public; this does not change your weekly answer or grant an extension.` });
-        if (state.unavailableReason) embed.addFields({ name: 'Your unavailable reason', value: escapeMarkdown(state.unavailableReason) });
+        if (state.holiday) embed.addFields({ name: 'Your holiday', value: `${state.holiday} days away. You still need to answer for this match. This does not add extra time.` });
+        if (state.unavailableReason) embed.addFields({ name: 'Your reason', value: escapeMarkdown(state.unavailableReason) });
         if (state.holidayReason) embed.addFields({ name: 'Your holiday reason', value: escapeMarkdown(state.holidayReason) });
-        actions = [row(button(state, 'available', 'Available', ButtonStyle.Success),
-            button(state, 'unavailable', 'Not this week'), button(state, 'holiday', 'Set holiday')),
-        row(button(state, 'opponent', 'Simulate opponent reply', ButtonStyle.Primary), button(state, 'reset', 'Reset sample'))];
+        actions = [row(button(state, 'available', 'Yes, I can play', ButtonStyle.Success),
+            button(state, 'unavailable', 'No, I can’t play'), button(state, 'holiday', 'I’m on holiday')),
+        row(button(state, 'opponent', 'Try an opponent answer', ButtonStyle.Primary), button(state, 'reset', 'Start again'))];
     } else if (state.screen === 'extension') {
-        embed.setColor(0xfbbf24).setTitle('Player1 requested a one-week extension')
-            .setDescription('**You are Player2 in this sample.**\nExample fixture: Player1 vs Player2 · Week 3')
-            .addFields({ name: 'Fixture release', value: state.dates.released },
-                { name: 'Original deadline', value: state.dates.original, inline: true },
-                { name: 'Proposed deadline', value: state.dates.extended, inline: true },
-                { name: 'Request status', value: state.extension },
-                { name: 'Proposed rule', value: 'The standard deadline is the Sunday after fixture release. An extension adds one week. This demo still uses mutual agreement; exceptions go to an admin.' });
-        actions = [row(button(state, 'agree', 'Agree', ButtonStyle.Success), button(state, 'decline', 'Can’t agree'), button(state, 'review', 'Ask admin'))];
+        embed.setColor(0xfbbf24).setTitle('Can you give Player1 another week?')
+            .setDescription('Player1 needs more time to play your match.\nChoose an answer below.')
+            .addFields(
+                { name: 'Play by', value: state.dates.original, inline: true },
+                { name: 'With an extra week', value: state.dates.extended, inline: true },
+                { name: 'Your answer', value: state.extension });
+        actions = [row(button(state, 'agree', 'Yes, that’s fine', ButtonStyle.Success), button(state, 'decline', 'No, I can’t'), button(state, 'review', 'Ask for help'))];
     } else {
         embed.setColor(0xfda4af).setTitle('Admin review · Player3 vs Player4')
             .setDescription('**Sample case:** Player3 requested a one-week extension; Player4 could not agree.')
             .addFields({ name: 'Availability', value: 'Player3: Not this week\nPlayer4: Available', inline: true },
                 { name: 'Holiday record', value: 'Player3: 4 days away\nDeclared before the deadline', inline: true },
-                { name: 'Original deadline', value: state.dates.original, inline: true },
+                { name: 'Play by', value: state.dates.original, inline: true },
                 { name: 'Extended deadline', value: state.dates.extended, inline: true },
                 { name: 'Decision', value: state.admin },
                 { name: 'Attendance flag', value: 'Player3 has 3 unresolved fixtures to review. No automatic disqualification or forfeit.' });
@@ -70,7 +69,7 @@ export function availabilityDemoMessage(state) {
         if (state.history) embed.addFields({ name: 'Sample history', value: 'Holiday declared\nBoth availability answers revealed\nPlayer3 requested +1 week\nPlayer4 could not agree' });
     }
     return { embeds: [embed], components: [...actions, row(
-        button(state, 'availability', 'Weekly DM'), button(state, 'extension', 'Extension request'), button(state, 'admin', 'Admin review'))], allowedMentions: { parse: [] } };
+        button(state, 'availability', 'Your match'), button(state, 'extension', 'Try extra time'), button(state, 'admin', 'Admin example'))], allowedMentions: { parse: [] } };
 }
 
 /** Demo-only interactions: no repository, database, or real-player messaging. */
@@ -110,7 +109,7 @@ export async function handleAvailabilityDemo(interaction) {
             return true;
         }
         const reasonInput = (value = '') => {
-            const input = new TextInputBuilder().setCustomId('reason').setLabel('Reason (optional)')
+            const input = new TextInputBuilder().setCustomId('reason').setLabel('Reason — you can leave this blank')
                 .setStyle(TextInputStyle.Paragraph).setRequired(false).setMaxLength(300);
             if (value) input.setValue(value);
             return new ActionRowBuilder().addComponents(input);
@@ -123,7 +122,7 @@ export async function handleAvailabilityDemo(interaction) {
             return true;
         }
         if (action === 'holiday') {
-            const modal = new ModalBuilder().setCustomId(`${PREFIX}${id}:holiday-submit`).setTitle('Sample holiday · no real booking')
+            const modal = new ModalBuilder().setCustomId(`${PREFIX}${id}:holiday-submit`).setTitle('Your holiday (practice)')
                 .addComponents(new ActionRowBuilder().addComponents(new TextInputBuilder()
                     .setCustomId('days').setLabel('Days away (1–14)').setStyle(TextInputStyle.Short)
                     .setRequired(true).setMaxLength(2).setPlaceholder('4')), reasonInput(state.holidayReason));
@@ -134,9 +133,9 @@ export async function handleAvailabilityDemo(interaction) {
         else if (action === 'available') { state.own = 'Available'; state.unavailableReason = ''; }
         else if (action === 'opponent') state.other = state.other === 'Available' ? 'Not this week' : 'Available';
         else if (action === 'reset') Object.assign(state, { own: null, other: null, revealed: false, holiday: null, holidayReason: '', unavailableReason: '' });
-        else if (action === 'agree') state.extension = `Approved in this demo · ${state.dates.extended}`;
-        else if (action === 'decline') state.extension = 'Could not agree · Admin review needed. No win awarded.';
-        else if (action === 'review') state.extension = 'Sent to the sample admin queue · Original deadline still applies.';
+        else if (action === 'agree') state.extension = `Agreed. Play by ${state.dates.extended}`;
+        else if (action === 'decline') state.extension = 'You couldn’t agree. An admin will need to help.';
+        else if (action === 'review') state.extension = 'You’ve asked for help. Keep the original date for now.';
         else if (action === 'history') state.history = !state.history;
         else if (action === 'approve') state.admin = `Demo decision: approved until ${state.dates.extended}. No real fixture changed.`;
         else if (action === 'keep') state.admin = 'Demo decision: original deadline kept. No result or forfeit recorded.';
