@@ -58,7 +58,7 @@ function event(state, action, { user = state.ownerId, modal = false, days = '4',
 }
 test('all screens serialize as Discord cards with valid buttons', () => {
     assert.equal(data.toJSON().name, 'availability-test');
-    for (const screen of ['availability', 'extension', 'admin']) {
+    for (const screen of ['availability', 'extension', 'extension-request', 'admin']) {
         const state = createAvailabilityDemo('owner', screen);
         Object.assign(state, { holiday: 14, holidayReason: '*'.repeat(300), unavailableReason: '_'.repeat(300), history: true });
         const message = availabilityDemoMessage(state);
@@ -131,4 +131,41 @@ test('closed DMs receive a helpful private error', async () => {
 });
 test('unrelated interactions are not consumed', async () => {
     assert.equal(await handleAvailabilityDemo({isButton:()=>true,isModalSubmit:()=>false,customId:'result_confirm:123'}),false);
+});
+
+function renderedButtons(state) {
+    const found = [];
+    const visit = part => {
+        if (part.custom_id) found.push(part);
+        (part.components ?? []).forEach(visit);
+    };
+    availabilityDemoMessage(state).components.map(x => x.toJSON()).forEach(visit);
+    return found;
+}
+test('saved answers visibly select a button and can be changed', async () => {
+    const state = createAvailabilityDemo('owner'); state.messageId = 'dm1';
+    for (const [action, modal, suffix] of [['available', false, ':available'], ['unavailable-submit', true, ':unavailable']]) {
+        await handleAvailabilityDemo(event(state, action, { modal }));
+        const buttons = renderedButtons(state);
+        const selected = buttons.find(b => b.custom_id.endsWith(suffix));
+        assert(selected.disabled); assert.match(selected.label, /^✓/);
+        assert(!buttons.find(b => b.custom_id.endsWith(suffix === ':available' ? ':unavailable' : ':available')).disabled);
+        assert.match(JSON.stringify(availabilityDemoMessage(state)), /Answer saved/);
+    }
+    discardAvailabilityDemo(state.id);
+});
+test('extra time is requested from the match card and needs confirmation', async () => {
+    const state = createAvailabilityDemo('owner'); state.messageId = 'dm1';
+    assert(renderedButtons(state).some(b => b.label === 'Ask for another week'));
+    await handleAvailabilityDemo(event(state, 'extension-request'));
+    assert.equal(state.extensionRequested, false);
+    assert(JSON.stringify(availabilityDemoMessage(state)).includes(state.dates.extended));
+    await handleAvailabilityDemo(event(state, 'send-extension'));
+    assert.equal(state.extensionRequested, true);
+    assert(renderedButtons(state).find(b => b.custom_id.endsWith(':send-extension')).disabled);
+    await handleAvailabilityDemo(event(state, 'availability'));
+    assert.match(JSON.stringify(availabilityDemoMessage(state)), /Waiting for Player2 to agree/);
+    await handleAvailabilityDemo(event(state, 'reset'));
+    assert.equal(state.extensionRequested, false);
+    discardAvailabilityDemo(state.id);
 });
