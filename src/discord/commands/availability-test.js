@@ -3,9 +3,9 @@ import { createAvailabilityDemo, availabilityDemoMessage, discardAvailabilityDem
 
 export const data = new SlashCommandBuilder()
     .setName('availability-test')
-    .setDescription('DM yourself an interactive availability demo with sample data')
+    .setDescription('Try the match availability buttons in your DMs')
     .setDMPermission(false)
-    .addStringOption(option => option.setName('screen').setDescription('Which sample to show first')
+    .addStringOption(option => option.setName('screen').setDescription('Which example would you like to try?')
         .addChoices({ name: 'Weekly availability', value: 'availability' },
             { name: 'Extension request', value: 'extension' }, { name: 'Admin review', value: 'admin' }));
 
@@ -22,7 +22,7 @@ export async function execute(interaction) {
         const message = await interaction.user.send(availabilityDemoMessage(state));
         state.messageId = message.id;
         sent = true;
-        await interaction.editReply('Sent a sample to your DMs. Try the buttons and “Simulate opponent reply”. All actions are demo-only; the session lasts one hour or until the bot restarts.');
+        await interaction.editReply('Sent a sample to your DMs. Open it and choose your answer. Use “Try an opponent answer” to see what happens next.');
     } catch (error) {
         if (!sent && state) discardAvailabilityDemo(state.id);
         console.error('Could not send availability demo:', error);
