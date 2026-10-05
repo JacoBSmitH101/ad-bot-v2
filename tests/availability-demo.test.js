@@ -1,3 +1,4 @@
+import { ModalSubmitFields, ModalSubmitInteraction } from 'discord.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createAvailabilityDemo, availabilityDemoMessage, handleAvailabilityDemo, discardAvailabilityDemo } from '../src/discord/handlers/availabilityDemo.js';
@@ -51,7 +52,7 @@ function event(state, action, { user = state.ownerId, modal = false, days = '4',
     return { calls, user: { id: user }, message: { id: message },
         customId: `availability-demo:${state.id}:${action}`,
         isButton: () => !modal, isModalSubmit: () => modal,
-        fields: { getStringSelectValues: () => selectedDays, getTextInputValue: key => key === 'days' ? days : key === 'available-note' ? note : reason },
+        fields: { getField: (key, type) => { assert.equal(key, 'available-days'); assert.equal(type, 22); return {type:22,values:selectedDays}; }, getTextInputValue: key => key === 'days' ? days : key === 'available-note' ? note : reason },
         reply: async x => { calls.reply = x; }, update: async x => { calls.update = x; },
         showModal: async x => { calls.modal = x; },
     };
@@ -174,7 +175,8 @@ test('available form is optional, saves only on submit and supports editing', as
     const state = createAvailabilityDemo('owner'); state.messageId = 'dm1';
     const open = event(state, 'available'); await handleAvailabilityDemo(open);
     assert.equal(state.own, null);
-    const form = open.calls.modal.toJSON();
+    const form = open.calls.modal;
+    assert.equal(form.components[0].component.type, 22);
     assert.equal(form.components[0].component.required, false);
     assert.equal(form.components[0].component.min_values, 0);
     assert.equal(form.components[1].component.required, false);
@@ -185,8 +187,8 @@ test('available form is optional, saves only on submit and supports editing', as
     assert.equal(state.availableNote, 'After 7');
     assert(renderedButtons(state).some(button => button.label === 'Edit my days'));
     const edit = event(state, 'edit-days'); await handleAvailabilityDemo(edit);
-    assert.equal(edit.calls.modal.toJSON().components[1].component.value, 'After 7');
-    assert.deepEqual(edit.calls.modal.toJSON().components[0].component.options.filter(day => day.default).map(day=>day.value), selectedDays);
+    assert.equal(edit.calls.modal.components[1].component.value, 'After 7');
+    assert.deepEqual(edit.calls.modal.components[0].component.options.filter(day => day.default).map(day=>day.value), selectedDays);
     await handleAvailabilityDemo(event(state, 'available-submit', {modal:true}));
     assert.equal(state.own, 'Available'); assert.deepEqual(state.ownDays, []); assert.equal(state.availableNote, '');
     discardAvailabilityDemo(state.id);
@@ -211,4 +213,25 @@ test('day choices cover release through the Sunday deadline across a year bounda
     assert.equal(dates.days[0].value,'2026-12-27');
     assert.equal(dates.days.at(-1).value,'2027-01-03');
     assert.equal(dates.days.at(-1).label,'Sunday 3 January');
+});
+
+test('checkbox submission parses through the installed Discord library and keeps saved ticks', async () => {
+    const state = createAvailabilityDemo('owner'); state.messageId='dm1';
+    const selectedDays=state.dates.days.slice(0,2).map(day=>day.value);
+    const raw=[
+        { type:18, id:1, component:{type:22,id:2,custom_id:'available-days',values:selectedDays} },
+        { type:18, id:3, component:{type:4,id:4,custom_id:'available-note',value:'After 7'} },
+    ];
+    const input=event(state,'available-submit',{modal:true});
+    input.fields=new ModalSubmitFields(raw.map(component=>ModalSubmitInteraction.transformComponent(component)));
+    await handleAvailabilityDemo(input);
+    assert(input.calls.update); assert.deepEqual(state.ownDays,selectedDays); assert.equal(state.availableNote,'After 7');
+    const edit=event(state,'edit-days');await handleAvailabilityDemo(edit);
+    assert.equal(edit.calls.modal.components[0].component.type,22);
+    assert.deepEqual(edit.calls.modal.components[0].component.options.filter(day=>day.default).map(day=>day.value),selectedDays);
+    raw[0].component.values=[];raw[1].component.value='';
+    input.fields=new ModalSubmitFields(raw.map(component=>ModalSubmitInteraction.transformComponent(component)));
+    await handleAvailabilityDemo(input);
+    assert.deepEqual(state.ownDays,[]);assert.equal(state.own,'Available');
+    discardAvailabilityDemo(state.id);
 });

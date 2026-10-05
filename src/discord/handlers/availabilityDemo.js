@@ -2,7 +2,7 @@ import { demoDeadlines } from './demoDeadlines.js';
 import { randomUUID } from 'node:crypto';
 import {
     ActionRowBuilder, ButtonBuilder, ButtonStyle, ContainerBuilder, TextDisplayBuilder, SeparatorBuilder, MessageFlags,
-    ModalBuilder, TextInputBuilder, TextInputStyle, LabelBuilder, StringSelectMenuBuilder, escapeMarkdown,
+    ModalBuilder, TextInputBuilder, TextInputStyle, escapeMarkdown,
 } from 'discord.js';
 
 const sessions = new Map();
@@ -124,7 +124,7 @@ export async function handleAvailabilityDemo(interaction) {
         }
         if (interaction.isModalSubmit()) {
             if (action === 'available-submit') {
-                const selected = [...new Set(interaction.fields.getStringSelectValues('available-days'))];
+                const selected = [...new Set(interaction.fields.getField('available-days', 22).values)];
                 if (selected.some(value => !state.dates.days.some(day => day.value === value))) {
                     await interaction.reply({ content: 'Choose days from the list, then try again.', flags: MessageFlags.Ephemeral });
                     return true;
@@ -170,20 +170,26 @@ export async function handleAvailabilityDemo(interaction) {
             return new ActionRowBuilder().addComponents(input);
         };
         if (action === 'available' || action === 'edit-days') {
-            const days = new StringSelectMenuBuilder().setCustomId('available-days')
-                .setPlaceholder('Choose any days that suit you').setMinValues(0)
-                .setMaxValues(state.dates.days.length).setRequired(false)
-                .addOptions(state.dates.days.map(day => ({ ...day, default: state.ownDays.includes(day.value) })));
             const note = new TextInputBuilder().setCustomId('available-note')
                 .setStyle(TextInputStyle.Paragraph).setRequired(false).setMaxLength(300)
                 .setPlaceholder('For example: usually after 7');
             if (state.availableNote) note.setValue(state.availableNote);
-            const modal = new ModalBuilder().setCustomId(`${PREFIX}${id}:available-submit`)
-                .setTitle('When can you play?')
-                .addLabelComponents(new LabelBuilder().setLabel('Which days can you play?')
-                    .setDescription('Choose more than one, or leave blank if you’re not sure yet.')
-                    .setStringSelectMenuComponent(days),
-                    new LabelBuilder().setLabel('Anything else? (optional)').setTextInputComponent(note));
+            // The installed discord.js builders predate checkbox groups. Its modal
+            // transport and generic field parser support the official API payload.
+            const modal = {
+                custom_id: `${PREFIX}${id}:available-submit`, title: 'When can you play?',
+                components: [{
+                    type: 18, label: 'Which days can you play?',
+                    description: 'Tick any days that suit you, or leave blank if you’re not sure yet.',
+                    component: {
+                        type: 22, custom_id: 'available-days', required: false,
+                        min_values: 0, max_values: state.dates.days.length,
+                        options: state.dates.days.map(day => ({ ...day, default: state.ownDays.includes(day.value) })),
+                    },
+                }, {
+                    type: 18, label: 'Anything else? (optional)', component: note.toJSON(),
+                }],
+            };
             await interaction.showModal(modal);
             return true;
         }
