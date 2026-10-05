@@ -11,5 +11,11 @@ export function demoDeadlines(releaseDate = new Intl.DateTimeFormat('en-CA', {
     const format = date => new Intl.DateTimeFormat('en-GB', {
         weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC',
     }).format(date);
-    return { releaseDate, released: format(released), original: format(due), extended: format(extended) };
+    const days = [];
+    for (const date = new Date(released); date <= due; date.setUTCDate(date.getUTCDate() + 1)) {
+        days.push({ value: date.toISOString().slice(0, 10), label: new Intl.DateTimeFormat('en-GB', {
+            weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC',
+        }).format(date) });
+    }
+    return { releaseDate, released: format(released), original: format(due), extended: format(extended), days };
 }
