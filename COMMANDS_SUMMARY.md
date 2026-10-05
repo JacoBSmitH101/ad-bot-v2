@@ -216,7 +216,7 @@
 - Optional `screen`: Weekly availability (default), Extension request, or Admin review. Navigation buttons switch between all three in the same DM.
 - Saved answers show a prominent confirmation and mark the selected button. The opposite answer remains available to change your response. Holidays update their button label.
 - “Ask for another week” opens a date confirmation; “Send request” records a sample request awaiting the opponent’s agreement. “Try receiving a request” separately previews the opponent response screen.
-- “Yes, I can play” opens an optional multi-select of dated days between fixture release and the Sunday deadline, plus an optional note. Closing the form leaves the answer unchanged. “Edit my days” reopens saved choices; the opponent’s days and note appear only after both players answer.
+- “Yes, I can play” opens optional tick boxes for dated days between fixture release and the Sunday deadline, plus an optional note. Closing the form leaves the answer unchanged. “Edit my days” reopens saved choices; the opponent’s days and note appear only after both players answer.
 - Weekly demo: answer, simulate the opponent replying, change answers, reset, or try the 1–14 day holiday form. Unavailable and holiday forms accept an optional reason.
 - Sample fixture release uses today in Europe/London. The standard deadline is the following Sunday (a Sunday release gets seven days); an extension adds another week. Deadlines show day and date without a time.
 - Extension/admin buttons edit sample state only. No Supabase reads/writes, public posts, real opponent messages, results, holidays, or deadlines are changed.
