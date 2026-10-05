@@ -1,7 +1,7 @@
 import { demoDeadlines } from './demoDeadlines.js';
 import { randomUUID } from 'node:crypto';
 import {
-    ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, MessageFlags,
+    ActionRowBuilder, ButtonBuilder, ButtonStyle, ContainerBuilder, TextDisplayBuilder, SeparatorBuilder, MessageFlags,
     ModalBuilder, TextInputBuilder, TextInputStyle, escapeMarkdown,
 } from 'discord.js';
 
@@ -29,47 +29,60 @@ const button = (state, action, label, style = ButtonStyle.Secondary) => new Butt
 const row = (...buttons) => new ActionRowBuilder().addComponents(...buttons);
 
 export function availabilityDemoMessage(state) {
-    const embed = new EmbedBuilder().setColor(0x22d3ee)
-        .setAuthor({ name: 'League Bot' })
-        .setFooter({ text: 'SAMPLE DATA ONLY · Practice message · Lasts 1 hour' });
-    let actions;
+    const card = new ContainerBuilder().setAccentColor(0x22d3ee);
+    const text = content => new TextDisplayBuilder().setContent(content);
+    const divider = () => card.addSeparatorComponents(new SeparatorBuilder());
     if (state.screen === 'availability') {
-        const visibleOther = state.revealed ? state.other : 'Hidden until you both answer';
-        embed.setTitle('Your match this week')
-            .setDescription('You’re playing **Player2**.\n**Can you play by the date below?**')
-            .addFields(
-                { name: 'Your answer', value: state.own ?? 'Choose an answer below', inline: true },
-                { name: 'Player2’s answer', value: visibleOther, inline: true },
-                { name: 'Play by', value: state.dates.original },
-            );
-        if (state.holiday) embed.addFields({ name: 'Your holiday', value: `${state.holiday} days away. You still need to answer for this match. This does not add extra time.` });
-        if (state.unavailableReason) embed.addFields({ name: 'Your reason', value: escapeMarkdown(state.unavailableReason) });
-        if (state.holidayReason) embed.addFields({ name: 'Your holiday reason', value: escapeMarkdown(state.holidayReason) });
-        actions = [row(button(state, 'available', 'Yes, I can play', ButtonStyle.Success),
-            button(state, 'unavailable', 'No, I can’t play'), button(state, 'holiday', 'I’m on holiday')),
-        row(button(state, 'opponent', 'Try an opponent answer', ButtonStyle.Primary), button(state, 'reset', 'Start again'))];
+        const other = state.revealed ? state.other : 'Hidden until you both answer';
+        card.addTextDisplayComponents(text('## Your match this week\nYou’re playing **Player2**.'));
+        card.addTextDisplayComponents(text('**Play by**\n' + state.dates.original));
+        divider();
+        card.addTextDisplayComponents(text('### Can you play by this date?'));
+        card.addActionRowComponents(row(
+            button(state, 'available', 'Yes, I can play', ButtonStyle.Success),
+            button(state, 'unavailable', 'No, I can’t play')));
+        card.addActionRowComponents(row(button(state, 'holiday', 'I’m on holiday')));
+        divider();
+        card.addTextDisplayComponents(text('**Your answer:** ' + (state.own ?? 'Not answered yet') +
+            '\n**Player2’s answer:** ' + other));
+        const notes = [];
+        if (state.holiday) notes.push('**Your holiday:** ' + state.holiday +
+            ' days away. You still need to answer for this match. This does not add extra time.');
+        if (state.unavailableReason) notes.push('**Your reason:** ' + escapeMarkdown(state.unavailableReason));
+        if (state.holidayReason) notes.push('**Holiday reason:** ' + escapeMarkdown(state.holidayReason));
+        if (notes.length) card.addTextDisplayComponents(text(notes.join('\n\n')));
     } else if (state.screen === 'extension') {
-        embed.setColor(0xfbbf24).setTitle('Can you give Player1 another week?')
-            .setDescription('Player1 needs more time to play your match.\nChoose an answer below.')
-            .addFields(
-                { name: 'Play by', value: state.dates.original, inline: true },
-                { name: 'With an extra week', value: state.dates.extended, inline: true },
-                { name: 'Your answer', value: state.extension });
-        actions = [row(button(state, 'agree', 'Yes, that’s fine', ButtonStyle.Success), button(state, 'decline', 'No, I can’t'), button(state, 'review', 'Ask for help'))];
+        card.setAccentColor(0xfbbf24);
+        card.addTextDisplayComponents(text('## A little more time\nPlayer1 needs another week to play your match.'));
+        card.addTextDisplayComponents(text('**Current date**\n' + state.dates.original +
+            '\n\n**With an extra week**\n' + state.dates.extended));
+        divider();
+        card.addTextDisplayComponents(text('### Is the new date okay for you?'));
+        card.addActionRowComponents(row(button(state, 'agree', 'Yes, that’s fine', ButtonStyle.Success),
+            button(state, 'decline', 'No, I can’t'), button(state, 'review', 'Ask for help')));
+        divider();
+        card.addTextDisplayComponents(text('**Your answer:** ' + state.extension));
     } else {
-        embed.setColor(0xfda4af).setTitle('Admin review · Player3 vs Player4')
-            .setDescription('**Sample case:** Player3 requested a one-week extension; Player4 could not agree.')
-            .addFields({ name: 'Availability', value: 'Player3: Not this week\nPlayer4: Available', inline: true },
-                { name: 'Holiday record', value: 'Player3: 4 days away\nDeclared before the deadline', inline: true },
-                { name: 'Play by', value: state.dates.original, inline: true },
-                { name: 'Extended deadline', value: state.dates.extended, inline: true },
-                { name: 'Decision', value: state.admin },
-                { name: 'Attendance flag', value: 'Player3 has 3 unresolved fixtures to review. No automatic disqualification or forfeit.' });
-        actions = [row(button(state, 'history', 'View history'), button(state, 'approve', 'Approve +1 week', ButtonStyle.Success), button(state, 'keep', 'Keep original deadline'))];
-        if (state.history) embed.addFields({ name: 'Sample history', value: 'Holiday declared\nBoth availability answers revealed\nPlayer3 requested +1 week\nPlayer4 could not agree' });
+        card.setAccentColor(0xfda4af);
+        card.addTextDisplayComponents(text('## Admin review\n**Player3 vs Player4**\nPlayer3 requested another week. Player4 could not agree.'));
+        divider();
+        card.addTextDisplayComponents(text('**Players’ answers**\nPlayer3: Not this week\nPlayer4: Available\n\n' +
+            '**Holiday**\nPlayer3: 4 days away, declared before the deadline.'));
+        card.addTextDisplayComponents(text('**Current date:** ' + state.dates.original +
+            '\n**With another week:** ' + state.dates.extended));
+        card.addTextDisplayComponents(text('**Needs attention**\nPlayer3 has 3 unresolved matches to review.'));
+        if (state.history) card.addTextDisplayComponents(text('**History**\nHoliday declared\nBoth players answered\nPlayer3 requested another week\nPlayer4 could not agree'));
+        divider();
+        card.addActionRowComponents(row(button(state, 'approve', 'Allow another week', ButtonStyle.Success),
+            button(state, 'keep', 'Keep current date'), button(state, 'history', state.history ? 'Hide history' : 'View history')));
+        card.addTextDisplayComponents(text('**Decision:** ' + state.admin));
     }
-    return { embeds: [embed], components: [...actions, row(
-        button(state, 'availability', 'Your match'), button(state, 'extension', 'Try extra time'), button(state, 'admin', 'Admin example'))], allowedMentions: { parse: [] } };
+    const testing = [text('-# SAMPLE DATA ONLY · Practice message · Lasts 1 hour')];
+    if (state.screen === 'availability') testing.push(row(
+        button(state, 'opponent', 'Try an opponent answer'), button(state, 'reset', 'Start again')));
+    testing.push(row(button(state, 'availability', 'Your match'),
+        button(state, 'extension', 'Try extra time'), button(state, 'admin', 'Admin example')));
+    return { flags: MessageFlags.IsComponentsV2, components: [card, ...testing], allowedMentions: { parse: [] } };
 }
 
 /** Demo-only interactions: no repository, database, or real-player messaging. */

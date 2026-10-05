@@ -56,13 +56,21 @@ function event(state, action, { user = state.ownerId, modal = false, days = '4',
         showModal: async x => { calls.modal = x; },
     };
 }
-test('all screens serialize with native Discord embeds and valid buttons', () => {
+test('all screens serialize as Discord cards with valid buttons', () => {
     assert.equal(data.toJSON().name, 'availability-test');
     for (const screen of ['availability', 'extension', 'admin']) {
         const state = createAvailabilityDemo('owner', screen);
+        Object.assign(state, { holiday: 14, holidayReason: '*'.repeat(300), unavailableReason: '_'.repeat(300), history: true });
         const message = availabilityDemoMessage(state);
-        assert.match(message.embeds[0].toJSON().footer.text, /SAMPLE DATA ONLY/);
-        for (const row of message.components) for (const button of row.toJSON().components) assert(button.custom_id.length <= 100);
+        assert.equal(message.flags, 32768);
+        assert.equal(message.embeds, undefined);
+        const parts = message.components.map(component => component.toJSON());
+        assert.match(JSON.stringify(parts), /SAMPLE DATA ONLY/);
+        const check = part => {
+            if (part.custom_id) assert(part.custom_id.length <= 100);
+            for (const child of part.components ?? []) check(child);
+        };
+        parts.forEach(check);
         discardAvailabilityDemo(state.id);
     }
 });
@@ -70,7 +78,7 @@ test('responses only reveal together and stay revealed after changes', async () 
     const state = createAvailabilityDemo('owner'); state.messageId = 'dm1';
     await handleAvailabilityDemo(event(state, 'opponent'));
     assert.equal(state.revealed, false);
-    assert.match(availabilityDemoMessage(state).embeds[0].toJSON().fields[1].value, /Hidden/);
+    assert.match(JSON.stringify(availabilityDemoMessage(state)), /Hidden until you both answer/);
     await handleAvailabilityDemo(event(state, 'available'));
     assert.equal(state.revealed, true);
     await handleAvailabilityDemo(event(state, 'unavailable-submit', {modal:true}));
