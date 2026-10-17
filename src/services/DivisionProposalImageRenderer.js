@@ -66,7 +66,7 @@ export async function renderDivisionProposalImages(proposal) {
             <circle cx="1160" cy="0" r="230" fill="#22d3ee" opacity=".035"/>
             <circle cx="1030" cy="20" r="170" fill="#8b5cf6" opacity=".045"/>
             ${label(40, 49, short(proposal.season.name, 65).toUpperCase(), 16, '#67e8f9', 700, 'letter-spacing="2"')}
-            ${label(40, 108, 'Proposed divisions', 46, '#ffffff', 700)}
+            ${label(40, 108, proposal.title ?? 'Proposed divisions', 46, '#ffffff', 700)}
             ${label(40, 147, `${proposal.playerCount} signups · ${proposal.groups.length} divisions · Based on signup averages and previous standings`, 19, '#a5b4c7')}
             ${label(40, 179, summary, 17, '#6ee7b7')}
             ${drawn.join('')}

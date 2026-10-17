@@ -154,3 +154,57 @@ test('command generates private graphics by default and only publishes on reques
     const publicPreview = interaction(true); await execute(publicPreview.i);
     assert.equal(publicPreview.calls.sends.length, 1); assert.deepEqual(publicPreview.calls.sends[0].allowedMentions, { parse: [] });
 });
+
+test('history-first keeps every returning earned place and puts newcomers below full divisions', () => {
+    const input = fixture();
+    const plan = buildDivisionProposal({ ...input, strategy: 'history' });
+    assert.deepEqual(plan.counts, [10, 10, 10, 12]);
+    assert.equal(plan.stats.moved, 0); assert.equal(plan.stats.kept, 22); assert.equal(plan.stats.promotions, 4);
+    for (const player of plan.groups.flat().filter(p => p.proposal.expectedIndex >= 0)) assert.equal(player.proposal.divisionIndex, player.proposal.expectedIndex);
+    assert.equal(find(plan, 'new-1').proposal.divisionIndex, 3, 'even the strongest newcomer must wait for a vacancy');
+    assert.equal(find(plan, '3-10').proposal.divisionIndex, 2, 'old lowest-division returner stays');
+    assert.equal(plan.groups.flat().length, 42);
+});
+test('history-first fills only actual vacancies with newcomers, strongest first', () => {
+    const input = fixture();
+    input.signups = input.signups.filter(p => !['1-3', '2-3', '3-3'].includes(p.discord_user_id));
+    const plan = buildDivisionProposal({ ...input, strategy: 'history' });
+    assert.deepEqual(plan.counts, [10, 10, 10, 9]);
+    assert.equal(find(plan,'new-1').proposal.divisionIndex,0);
+    assert.equal(find(plan,'new-2').proposal.divisionIndex,1);
+    assert.equal(find(plan,'new-3').proposal.divisionIndex,2);
+    assert.equal(find(plan,'new-4').proposal.divisionIndex,3);
+    assert.equal(plan.stats.moved,0);
+    assert.match(find(plan,'new-1').proposal.detail,/vacancy/);
+});
+test('history-first never drops players when too few divisions are requested', () => {
+    const input = fixture();
+    const plan = buildDivisionProposal({ ...input, count:3, strategy:'history' });
+    assert.equal(plan.groups.flat().length,42);
+    assert.equal(new Set(plan.groups.flat().map(p=>p.discord_user_id)).size,42);
+    assert(plan.conflicts.some(text=>text.includes('additional lower division')));
+    assert.equal(plan.stats.moved,0);
+});
+test('both previews share historical reads and previewing saves neither option', async () => {
+    const f = serviceFixture(); let reads=0;
+    const original=f.service._getFinalTable;
+    f.service._getFinalTable=async input=>{reads++;return original(input)};
+    const plan = await f.service.previewAuto({guildId:'guild',count:4});
+    assert.equal(reads,3);
+    assert.equal(plan.alternatives.length,1);
+    assert.equal(plan.alternatives[0].strategy,'history');
+    assert.deepEqual(plan.alternatives[0].counts,[10,10,10,12]);
+    assert.deepEqual(f.writes,[]);
+});
+test('command sends both clearly labelled graphics with one combined notes file', async () => {
+    const f=interaction();
+    const base=model();
+    base.alternatives=[buildDivisionProposal({...fixture(),strategy:'history'})];
+    f.i.client.services.divisions.previewAuto=async()=>base;
+    await execute(f.i);
+    const message=f.calls.edits[0];
+    assert.match(message.content,/Option 1/);assert.match(message.content,/Option 2/);
+    assert.match(message.content,/10 \/ 10 \/ 10 \/ 12/);
+    assert.deepEqual(message.files.map(file=>file.name),['division-proposal-balanced-1.png','division-proposal-history-1.png','division-proposal-notes.txt']);
+    assert.equal(f.calls.names,1);assert.equal(f.calls.sends.length,0);
+});

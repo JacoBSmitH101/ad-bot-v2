@@ -149,27 +149,37 @@ export async function execute(interaction) {
         const publish = interaction.options.getBoolean('publish') ?? false;
         await interaction.deferReply({ flags: MessageFlags.Ephemeral });
         const proposal = await interaction.client.services.divisions.previewAuto({ guildId: interaction.guildId, count });
+        const variants = [{ ...proposal, key: 'balanced', title: 'Option 1 · Balanced split' },
+            ...(proposal.alternatives ?? []).map(plan => ({ ...plan, season: proposal.season,
+                divisions: proposal.divisions, playerCount: proposal.playerCount,
+                key: 'history', title: 'Option 2 · Last season honoured' }))];
         const ids = proposal.groups.flat().map(player => player.discord_user_id);
         const savedNames = await interaction.client.repos.players.listByDiscordIds({ discordUserIds: ids });
         const names = new Map(savedNames.map(player => [player.discord_user_id, player.display_name]));
-        for (const player of proposal.groups.flat()) {
+        for (const player of variants.flatMap(plan => plan.groups.flat())) {
             const member = interaction.guild?.members?.cache?.get(player.discord_user_id);
             const user = interaction.client.users?.cache?.get(player.discord_user_id);
             player.name = member?.displayName || names.get(player.discord_user_id) || user?.globalName || user?.username || player.discord_user_id;
         }
-        const pngs = await renderDivisionProposalImages(proposal);
-        const stats = proposal.stats;
-        const summary = 'Proposed split: **' + proposal.counts.join(' / ') + '**. ' +
-            stats.promotions + ' promotions honoured · ' + stats.kept + ' returning players staying · ' + stats.moved + ' proposed moves.';
-        const review = [...proposal.conflicts, ...proposal.warnings];
-        const details = [proposal.season.name + ' — proposed divisions', summary.replaceAll('**', ''),
-            '', ...proposal.groups.flatMap((group, i) => [proposal.divisions[i].name + ' — ' + group.length + ' players (target ' + proposal.targetSizes[i] + ')',
-                ...group.map(player => player.name + ' | ' + Number(player.avg_3dart).toFixed(1) + ' avg | ' + player.proposal.detail + (player.proposal.review ? ' REVIEW: large average mismatch.' : '')), '']),
-            'Review notes', ...review, '', 'Proposal only. No divisions or assignments have been saved.'].join('\n');
-        const files = [...pngs.map((png, i) => new AttachmentBuilder(png, { name: 'division-proposal-' + (i + 1) + '.png' })),
-            new AttachmentBuilder(Buffer.from(details), { name: 'division-proposal-notes.txt' })];
-        const content = summary + '\nProposal only. No assignments have been saved.' +
-            (review.length ? '\n**' + (proposal.conflicts.length ? 'Needs admin review.' : 'Review notes included.') + '** See the attached player notes.' : '');
+        const files = [], summaries = [], details = [proposal.season.name + ' — division options'];
+        let needsReview = false;
+        for (const plan of variants) {
+            const pngs = await renderDivisionProposalImages(plan);
+            files.push(...pngs.map((png, i) => new AttachmentBuilder(png, { name: 'division-proposal-' + plan.key + '-' + (i + 1) + '.png' })));
+            const stats = plan.stats;
+            const summary = '**' + plan.title + ': ' + plan.counts.join(' / ') + '**\n' +
+                stats.promotions + ' promotions honoured · ' + stats.kept + ' returning players staying · ' + stats.moved + ' proposed moves.';
+            summaries.push(summary);
+            const review = [...plan.conflicts, ...plan.warnings];
+            needsReview ||= review.length > 0;
+            details.push('', summary.replaceAll('**', ''),
+                ...plan.groups.flatMap((group, i) => [plan.divisions[i].name + ' — ' + group.length + ' players (target ' + plan.targetSizes[i] + ')',
+                    ...group.map(player => player.name + ' | ' + Number(player.avg_3dart).toFixed(1) + ' avg | ' + player.proposal.detail + (player.proposal.review ? ' REVIEW: large average mismatch.' : '')), '']),
+                'Review notes', ...review);
+        }
+        details.push('', 'No divisions or assignments have been saved. Automatic assignment continues to use Option 1.');
+        files.push(new AttachmentBuilder(Buffer.from(details.join('\n')), { name: 'division-proposal-notes.txt' }));
+        const content = summaries.join('\n\n') + (needsReview ? '\n\nPlayer-by-player explanations and review notes are attached.' : '');
         for (let i = 0; i < files.length; i += 10) {
             const message = { content: i === 0 ? content : 'Division proposal continued.', files: files.slice(i, i + 10), allowedMentions: { parse: [] } };
             if (publish) await interaction.channel.send(message);

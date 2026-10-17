@@ -84,6 +84,9 @@
     - `count` (required) - Number of divisions to preview
     - `publish` (optional) - Post the proposal in this channel; default is private
     - Example: `/divisions preview-auto count:4`
+    - Generates two labelled graphics from one signup/history snapshot: Option 1 (balanced split), and Option 2 (last season honoured).
+    - Option 2 keeps every returning player in their expected division after earned promotions/relegations, preserves old division sizes for vacancy filling, fills those vacancies with newcomers by average, then groups remaining newcomers into the new lower divisions. Its sizes can differ from the balanced targets; e.g. 10 / 10 / 10 / 12. It never displaces a returner for a newcomer.
+    - Both options are previews. `/divisions assign-auto` continues to save Option 1; Option 2 is for comparison and manual planning.
     - Sizes differ by at most one, with extra places in lower divisions: 42 players across four divisions gives 10 / 10 / 11 / 11.
     - Returning players keep their expected division where possible. Earned promotions and established relegations are protected even when adding divisions; the old lowest division is not retrospectively given relegation places.
     - New players are placed by signup average. A shared assignment planner balances average fit against moving established players; each move carries a stability cost equivalent to a squared 10-point average gap. Moves beyond one division and protected-place capacity conflicts require manual review.
