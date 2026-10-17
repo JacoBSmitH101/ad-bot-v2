@@ -124,7 +124,7 @@ export class DivisionService {
     }
 
     /** Shared read-only planner for graphic previews and explicit assignments. */
-    async _buildProposal({ guildId, season, signups, divisionCount }) {
+    async _buildProposal({ guildId, season, signups, divisionCount, includeAlternatives = false }) {
         const previousSeason = await this.seasons.getPreviousForGuild(guildId, season.created_at);
         const previousDivisions = previousSeason && ['active', 'closed'].includes(previousSeason.status)
             ? [...await this.divisions.listBySeason(previousSeason.id)].sort((a, b) => a.sort_order - b.sort_order) : [];
@@ -139,6 +139,7 @@ export class DivisionService {
             previousSignups = results[0];
             results[1].forEach((table, i) => {
                 const division = previousDivisions[i];
+                division.playerCount = table.length;
                 if (!table.some(row => row.hasConfirmedResults)) warnings.push(division.name + ' has no confirmed results; roster continuity is used without promotion/relegation.');
                 table.forEach((row, rank) => {
                     const placements = placementsByUser.get(row.discordUserId) ?? [];
@@ -149,9 +150,15 @@ export class DivisionService {
             });
             if (previousSeason.status !== 'closed') warnings.push('The previous season is not closed. Movements are provisional, using confirmed results so far.');
         }
-        const proposal = buildDivisionProposal({ signups, count: divisionCount, previousDivisions,
-            placementsByUser, previousSignupIds: new Set(previousSignups.map(player => player.discord_user_id)) });
+        const input = { signups, count: divisionCount, previousDivisions, placementsByUser,
+            previousSignupIds: new Set(previousSignups.map(player => player.discord_user_id)) };
+        const proposal = buildDivisionProposal(input);
         proposal.warnings.push(...warnings);
+        if (includeAlternatives) {
+            const history = buildDivisionProposal({ ...input, strategy: 'history' });
+            history.warnings.push(...warnings);
+            proposal.alternatives = [history];
+        }
         return proposal;
     }
 
@@ -382,6 +389,7 @@ export class DivisionService {
             season,
             signups,
             divisionCount: count,
+            includeAlternatives: true,
         });
         const maxAllowed = this._maxDivisionsAllowed(playerCount);
         const warnings = [...proposal.warnings];

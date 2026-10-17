@@ -11,7 +11,7 @@ export function proposalMarker(player) {
     if (p.reason === 'promoted') return { text: `PROMOTED · ${p.previousDivision} → Div ${p.divisionIndex + 1}`, color: '#6ee7b7' };
     if (p.reason === 'relegated') return { text: `RELEGATED · ${p.previousDivision} → Div ${p.divisionIndex + 1}`, color: '#d49a9f' };
     if (p.reason === 'returning') return { text: 'STAYING IN DIVISION', color: '#8493a7' };
-    return { text: p.reason === 'new' ? 'NEW PLAYER' : 'RETURNING · PLACED BY AVERAGE', color: '#67e8f9' };
+    return { text: p.reason === 'new' ? 'NEW THIS SEASON' : 'RETURNING · PLACED BY AVERAGE', color: '#67e8f9' };
 }
 
 /** Cards paginate at 20 players and four cards per image; no roster is clipped. */
@@ -58,7 +58,7 @@ export async function renderDivisionProposalImages(proposal) {
             });
             top += height + 24;
         }
-        const height = top + 108;
+        const height = top;
         const summary = `${proposal.stats.promotions} promotions honoured · ${proposal.stats.kept} returning players staying · ${proposal.stats.moved} proposed moves`;
         const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="${height}">
             <defs><linearGradient id="bg" x2="1" y2="1"><stop stop-color="#070c15"/><stop offset="1" stop-color="#0b1220"/></linearGradient></defs>
@@ -66,13 +66,10 @@ export async function renderDivisionProposalImages(proposal) {
             <circle cx="1160" cy="0" r="230" fill="#22d3ee" opacity=".035"/>
             <circle cx="1030" cy="20" r="170" fill="#8b5cf6" opacity=".045"/>
             ${label(40, 49, short(proposal.season.name, 65).toUpperCase(), 16, '#67e8f9', 700, 'letter-spacing="2"')}
-            ${label(40, 108, 'Proposed divisions', 46, '#ffffff', 700)}
+            ${label(40, 108, proposal.title ?? 'Proposed divisions', 46, '#ffffff', 700)}
             ${label(40, 147, `${proposal.playerCount} signups · ${proposal.groups.length} divisions · Based on signup averages and previous standings`, 19, '#a5b4c7')}
             ${label(40, 179, summary, 17, '#6ee7b7')}
             ${drawn.join('')}
-            ${label(40, top + 20, proposal.conflicts.length ? 'Needs admin review · Protected places conflict with the requested split' : 'Proposal only · Review before assigning players', 19, proposal.conflicts.length ? '#fbbf24' : '#cbd5e1', 600)}
-            ${label(40, top + 49, 'Extra places go to lower divisions · Player notes explain proposed moves', 15, '#8493a7')}
-            ${label(1240, top + 79, `Page ${pages.length + 1} / ${Math.ceil(cards.length / 4)}`, 14, '#8493a7', 500, 'text-anchor="end"')}
         </svg>`;
         pages.push(await sharp(Buffer.from(svg)).png({ compressionLevel: 9 }).toBuffer());
     }

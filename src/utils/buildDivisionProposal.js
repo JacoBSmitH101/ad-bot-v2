@@ -40,8 +40,9 @@ function allocate(costs) {
 }
 
 /** Read-only plan. Protected movement is based on the OLD division structure. */
-export function buildDivisionProposal({ signups, count, previousDivisions = [], placementsByUser = new Map(), previousSignupIds = new Set() }) {
+export function buildDivisionProposal({ signups, count, previousDivisions = [], placementsByUser = new Map(), previousSignupIds = new Set(), strategy = 'balanced' }) {
     if (!Number.isInteger(count) || count < 1 || count > 10) throw new DomainError('INVALID_COUNT', 'Choose 1–10 divisions.');
+    if (!['balanced', 'history'].includes(strategy)) throw new DomainError('INVALID_STRATEGY', 'Unknown division proposal strategy.');
     const seen = new Set();
     for (const player of signups) {
         if (seen.has(player.discord_user_id)) throw new DomainError('DUPLICATE_PLAYER', 'A player appears more than once in signups.');
@@ -73,6 +74,44 @@ export function buildDivisionProposal({ signups, count, previousDivisions = [], 
         return { ...signup, proposal: { previousDivision: placement?.divisionName ?? null, expectedIndex, reason, locked } };
     });
     const groups = Array.from({ length: count }, () => []);
+    if (strategy === 'history') {
+        const oldCount = Math.min(previous.length, count);
+        for (const player of players.filter(p => p.proposal.expectedIndex >= 0)) {
+            const index = player.proposal.expectedIndex;
+            if (index >= count && !player.proposal.locked) conflicts.push(player.discord_user_id + ': their previous division is not in this proposal.');
+            groups[Math.min(count - 1, index)].push(player);
+        }
+        // Preserve historical sizes. Only actual vacancies are open to new players;
+        // adding a lower division must not create extra spaces in existing ones.
+        const allPlacements = [...placementsByUser.values()].flat();
+        for (let i = 0; i < oldCount; i++) {
+            const sizes = allPlacements.filter(p => p.divisionSortOrder === previous[i].sort_order).map(p => p.of || 0);
+            targetSizes[i] = previous[i].playerCount ?? (Math.max(0, ...sizes) || targetSizes[i]);
+            if (groups[i].length > targetSizes[i]) warnings.push('Div ' + (i + 1) + ' retains ' + groups[i].length + ' returning players despite its previous size of ' + targetSizes[i] + '.');
+        }
+        const newcomers = players.filter(p => p.proposal.expectedIndex < 0);
+        let next = 0;
+        for (let i = 0; i < oldCount; i++) while (groups[i].length < targetSizes[i] && next < newcomers.length) {
+            const player = newcomers[next++];
+            player.proposal.placementNote = 'Fills a vacancy in Div ' + (i + 1) + ', using signup average.';
+            groups[i].push(player);
+        }
+        if (count > oldCount) {
+            const sizes = divisionTargetSizes(newcomers.length - next, count - oldCount);
+            for (let i = oldCount; i < count; i++) {
+                targetSizes[i] = sizes[i - oldCount];
+                for (let j = 0; j < targetSizes[i]; j++) {
+                    const player = newcomers[next++];
+                    player.proposal.placementNote = 'Placed in a new lower division after existing vacancies were filled.';
+                    groups[i].push(player);
+                }
+            }
+        } else if (next < newcomers.length) {
+            conflicts.push((newcomers.length - next) + ' players need an additional lower division. Shown in the lowest division pending review.');
+            groups[count - 1].push(...newcomers.slice(next));
+        }
+        for (let i = 0; i < count; i++) if (groups[i].length < 7) warnings.push('Div ' + (i + 1) + ' has only ' + groups[i].length + ' players in this history-first split.');
+    } else {
     for (const player of players.filter(p => p.proposal.locked)) groups[Math.min(count - 1, player.proposal.expectedIndex)].push(player);
     const capacity = targetSizes.map((size, i) => Math.max(size, groups[i].length));
     for (let i = 0; i < count; i++) if (groups[i].length > targetSizes[i]) conflicts.push(`Div ${i + 1}: ${groups[i].length} protected places exceed its target of ${targetSizes[i]}.`);
@@ -91,6 +130,7 @@ export function buildDivisionProposal({ signups, count, previousDivisions = [], 
         return gap(Number(player.avg_3dart), i) ** 2 + distance * 100 + (distance > 1 ? 1_000_000 : 0);
     }));
     allocate(costs).forEach((slot, index) => groups[slots[slot]].push(remaining[index]));
+    }
     const stats = { promotions: 0, relegations: 0, kept: 0, moved: 0, newcomers: 0, review: 0 };
     groups.forEach((group, i) => {
         group.forEach(player => {
@@ -108,11 +148,11 @@ export function buildDivisionProposal({ signups, count, previousDivisions = [], 
             info.detail = info.moved ? `Expected Div ${info.expectedIndex + 1}; proposed Div ${i + 1} to balance sizes and average fit.`
                 : info.reason === 'promoted' ? `Promoted from ${info.previousDivision}; place protected.`
                 : info.reason === 'relegated' ? `Relegated from ${info.previousDivision}; place protected.`
-                : info.reason === 'returning' ? `Stays in ${info.previousDivision}.` : 'Placed using signup average.';
+                : info.reason === 'returning' ? `Stays in ${info.previousDivision}.` : (info.placementNote ?? 'Placed using signup average.');
         });
         group.sort((a, b) => Number(b.avg_3dart) - Number(a.avg_3dart) || String(a.discord_user_id).localeCompare(String(b.discord_user_id)));
     });
     if (!previous.length) warnings.push('No previous division history available; placements use signup averages.');
     if (stats.review) warnings.push(`${stats.review} player(s) are at least 10 average points outside their average-based division band. Review the fit; protected places remain honoured.`);
-    return { groups, targetSizes, counts: groups.map(g => g.length), conflicts, warnings, stats };
+    return { strategy, groups, targetSizes, counts: groups.map(g => g.length), conflicts, warnings, stats };
 }
