@@ -1,7 +1,8 @@
+import { renderDivisionProposalImages } from '../../services/DivisionProposalImageRenderer.js';
 import {
     SlashCommandBuilder,
     PermissionFlagsBits,
-    EmbedBuilder,
+    EmbedBuilder, AttachmentBuilder, MessageFlags,
 } from "discord.js";
 
 /**
@@ -31,7 +32,7 @@ export const data = new SlashCommandBuilder()
         s
             .setName("assign-auto")
             .setDescription(
-                "Assign players into divisions by average (Div1 strongest)"
+                "Save proposed division assignments, honouring earned places"
             )
     )
     .addSubcommand((s) =>
@@ -57,7 +58,7 @@ export const data = new SlashCommandBuilder()
         s
             .setName("preview-auto")
             .setDescription(
-                "Preview auto-assignments (no DB changes, signups can be open)"
+                "Generate a proposed division-split graphic (signups can be open)"
             )
             .addIntegerOption((o) =>
                 o
@@ -65,6 +66,7 @@ export const data = new SlashCommandBuilder()
                     .setDescription("Number of divisions to preview")
                     .setRequired(true)
             )
+            .addBooleanOption(o => o.setName("publish").setDescription("Post the proposal here; defaults to a private preview"))
     );
 
 /**
@@ -143,30 +145,38 @@ export async function execute(interaction) {
     }
 
     if (sub === "preview-auto") {
-        const count = interaction.options.getInteger("count", true);
-        const { season, divisions, counts, warnings, playerCount } =
-            await interaction.client.services.divisions.previewAuto({
-                guildId: interaction.guildId,
-                count,
-            });
-
-        const warningLines = warnings.length
-            ? `\n\n⚠️ ${warnings.join("\n⚠️ ")}`
-            : "";
-
-        const embed = new EmbedBuilder()
-            .setTitle("👀 Division Preview")
-            .setDescription(
-                divisions
-                    .map((d, i) => `• **${d.name}** — **${counts[i]}** players`)
-                    .join("\n") + warningLines
-            )
-            .setFooter({
-                text: `${season.name} • ${playerCount} total signups`,
-            })
-            .setTimestamp();
-
-        return interaction.reply({ embeds: [embed] });
+        const count = interaction.options.getInteger('count', true);
+        const publish = interaction.options.getBoolean('publish') ?? false;
+        await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+        const proposal = await interaction.client.services.divisions.previewAuto({ guildId: interaction.guildId, count });
+        const ids = proposal.groups.flat().map(player => player.discord_user_id);
+        const savedNames = await interaction.client.repos.players.listByDiscordIds({ discordUserIds: ids });
+        const names = new Map(savedNames.map(player => [player.discord_user_id, player.display_name]));
+        for (const player of proposal.groups.flat()) {
+            const member = interaction.guild?.members?.cache?.get(player.discord_user_id);
+            const user = interaction.client.users?.cache?.get(player.discord_user_id);
+            player.name = member?.displayName || names.get(player.discord_user_id) || user?.globalName || user?.username || player.discord_user_id;
+        }
+        const pngs = await renderDivisionProposalImages(proposal);
+        const stats = proposal.stats;
+        const summary = 'Proposed split: **' + proposal.counts.join(' / ') + '**. ' +
+            stats.promotions + ' promotions honoured · ' + stats.kept + ' returning players staying · ' + stats.moved + ' proposed moves.';
+        const review = [...proposal.conflicts, ...proposal.warnings];
+        const details = [proposal.season.name + ' — proposed divisions', summary.replaceAll('**', ''),
+            '', ...proposal.groups.flatMap((group, i) => [proposal.divisions[i].name + ' — ' + group.length + ' players (target ' + proposal.targetSizes[i] + ')',
+                ...group.map(player => player.name + ' | ' + Number(player.avg_3dart).toFixed(1) + ' avg | ' + player.proposal.detail + (player.proposal.review ? ' REVIEW: large average mismatch.' : '')), '']),
+            'Review notes', ...review, '', 'Proposal only. No divisions or assignments have been saved.'].join('\n');
+        const files = [...pngs.map((png, i) => new AttachmentBuilder(png, { name: 'division-proposal-' + (i + 1) + '.png' })),
+            new AttachmentBuilder(Buffer.from(details), { name: 'division-proposal-notes.txt' })];
+        const content = summary + '\nProposal only. No assignments have been saved.' +
+            (review.length ? '\n**' + (proposal.conflicts.length ? 'Needs admin review.' : 'Review notes included.') + '** See the attached player notes.' : '');
+        for (let i = 0; i < files.length; i += 10) {
+            const message = { content: i === 0 ? content : 'Division proposal continued.', files: files.slice(i, i + 10), allowedMentions: { parse: [] } };
+            if (publish) await interaction.channel.send(message);
+            else if (i === 0) await interaction.editReply(message);
+            else await interaction.followUp({ ...message, flags: MessageFlags.Ephemeral });
+        }
+        if (publish) await interaction.editReply('Division proposal posted in this channel. No assignments have been saved.');
     }
 }
 

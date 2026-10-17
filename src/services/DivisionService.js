@@ -1,6 +1,5 @@
 import { DomainError } from "../utils/DomainError.js";
-import { chunkDivisions } from "../utils/chunkDivisions.js";
-import { suggestDivisionGroups } from "../utils/suggestDivisionGroups.js";
+import { buildDivisionProposal } from "../utils/buildDivisionProposal.js";
 
 /**
  * Service for managing division creation and player assignment.
@@ -113,6 +112,7 @@ export class DivisionService {
             .map((row) => ({
                 ...row,
                 legDiff: row.legsFor - row.legsAgainst,
+                hasConfirmedResults: confirmed.length > 0,
             }))
             .sort(
                 (a, b) =>
@@ -123,72 +123,36 @@ export class DivisionService {
             );
     }
 
-    /**
-     * Build automatic groups using last season when its division count matches.
-     * Falls back to average-only grouping when there is no comparable season.
-     * @private
-     * @param {{ guildId: string, season: Season, signups: Array.<Signup>, divisionCount: number }} input
-     * @returns {Promise<Array.<Array.<Signup>>>}
-     */
-    async _buildAutoGroups({ guildId, season, signups, divisionCount }) {
-        const averageGroups = () => {
-            const sorted = [...signups].sort(
-                (a, b) => Number(b.avg_3dart) - Number(a.avg_3dart)
-            );
-            return chunkDivisions(sorted, divisionCount);
-        };
-
-        const previousSeason = await this.seasons.getPreviousForGuild(
-            guildId,
-            season.created_at
-        );
-        if (!previousSeason) return averageGroups();
-
-        const previousDivisions = await this.divisions.listBySeason(
-            previousSeason.id
-        );
-        if (previousDivisions.length !== divisionCount) return averageGroups();
-
-        const [previousSignups, finalTables] = await Promise.all([
-            this.signups.listBySeason(previousSeason.id),
-            Promise.all(
-                previousDivisions.map((division) =>
-                    this._getFinalTable({
-                        seasonId: previousSeason.id,
-                        division,
-                    })
-                )
-            ),
-        ]);
+    /** Shared read-only planner for graphic previews and explicit assignments. */
+    async _buildProposal({ guildId, season, signups, divisionCount }) {
+        const previousSeason = await this.seasons.getPreviousForGuild(guildId, season.created_at);
+        const previousDivisions = previousSeason && ['active', 'closed'].includes(previousSeason.status)
+            ? [...await this.divisions.listBySeason(previousSeason.id)].sort((a, b) => a.sort_order - b.sort_order) : [];
         const placementsByUser = new Map();
-
-        finalTables.forEach((table, divisionIndex) => {
-            const division = previousDivisions[divisionIndex];
-            table.forEach((row, rankIndex) => {
-                const placements =
-                    placementsByUser.get(row.discordUserId) ?? [];
-                placements.push({
-                    divisionName: division.name,
-                    divisionSortOrder: division.sort_order,
-                    rank: rankIndex + 1,
-                    of: table.length,
+        const warnings = [];
+        let previousSignups = [];
+        if (previousDivisions.length) {
+            const results = await Promise.all([
+                this.signups.listBySeason(previousSeason.id),
+                Promise.all(previousDivisions.map(division => this._getFinalTable({ seasonId: previousSeason.id, division }))),
+            ]);
+            previousSignups = results[0];
+            results[1].forEach((table, i) => {
+                const division = previousDivisions[i];
+                if (!table.some(row => row.hasConfirmedResults)) warnings.push(division.name + ' has no confirmed results; roster continuity is used without promotion/relegation.');
+                table.forEach((row, rank) => {
+                    const placements = placementsByUser.get(row.discordUserId) ?? [];
+                    placements.push({ divisionName: division.name, divisionSortOrder: division.sort_order,
+                        rank: row.hasConfirmedResults ? rank + 1 : null, of: table.length });
+                    placementsByUser.set(row.discordUserId, placements);
                 });
-                placementsByUser.set(row.discordUserId, placements);
             });
-        });
-
-        const signupsInSiteOrder = [...signups].sort((a, b) =>
-            String(a.created_at).localeCompare(String(b.created_at))
-        );
-
-        return suggestDivisionGroups({
-            signups: signupsInSiteOrder,
-            previousSignupIds: new Set(
-                previousSignups.map((signup) => signup.discord_user_id)
-            ),
-            previousDivisions,
-            placementsByUser,
-        });
+            if (previousSeason.status !== 'closed') warnings.push('The previous season is not closed. Movements are provisional, using confirmed results so far.');
+        }
+        const proposal = buildDivisionProposal({ signups, count: divisionCount, previousDivisions,
+            placementsByUser, previousSignupIds: new Set(previousSignups.map(player => player.discord_user_id)) });
+        proposal.warnings.push(...warnings);
+        return proposal;
     }
 
     /**
@@ -249,8 +213,7 @@ export class DivisionService {
     }
 
     /**
-     * Auto-assign players into divisions by skill grouping.
-     * Div 1 gets highest averages, Div 2 next, etc.
+     * Auto-assign from the same protected-place proposal as the graphic preview.
      * Clears existing assignments before reassigning.
      * @param {{ guildId: string }} input
      * @returns {Promise<{season: Season, divisions: Array.<Division>, counts: Array.<number>}>}
@@ -260,7 +223,7 @@ export class DivisionService {
         const season = await this._getSeasonOrThrow(guildId);
         this._assertSignupsClosed(season);
 
-        const divs = await this.divisions.listBySeason(season.id);
+        const divs = [...await this.divisions.listBySeason(season.id)].sort((a, b) => a.sort_order - b.sort_order);
         if (!divs.length) {
             throw new DomainError("NO_DIVISIONS", "Create divisions first.");
         }
@@ -283,13 +246,15 @@ export class DivisionService {
             );
         }
 
-        const groups = await this._buildAutoGroups({
+        const proposal = await this._buildProposal({
             guildId,
             season,
             signups,
             divisionCount: divs.length,
         });
 
+        if (proposal.conflicts.length) throw new DomainError('PROPOSAL_CONFLICT', 'The proposed split has protected-place or movement conflicts. Review /divisions preview-auto before assigning.');
+        const groups = proposal.groups;
         // Clear old assignments only after the replacement groups are ready.
         await this.divisions.clearPlayersForSeason(season.id);
 
@@ -412,14 +377,14 @@ export class DivisionService {
             throw new DomainError("NO_SIGNUPS", "No signups yet.");
         }
 
-        const groups = await this._buildAutoGroups({
+        const proposal = await this._buildProposal({
             guildId,
             season,
             signups,
             divisionCount: count,
         });
         const maxAllowed = this._maxDivisionsAllowed(playerCount);
-        const warnings = [];
+        const warnings = [...proposal.warnings];
 
         if (playerCount < this.MIN_PER_DIVISION) {
             warnings.push(
@@ -433,7 +398,7 @@ export class DivisionService {
             );
         }
 
-        const existing = await this.divisions.listBySeason(season.id);
+        const existing = [...await this.divisions.listBySeason(season.id)].sort((a, b) => a.sort_order - b.sort_order);
         const divisions =
             existing.length === count
                 ? existing
@@ -445,9 +410,9 @@ export class DivisionService {
         return {
             season,
             divisions,
-            counts: groups.map((g) => g.length),
-            warnings,
             playerCount,
+            ...proposal,
+            warnings,
         };
     }
 }
