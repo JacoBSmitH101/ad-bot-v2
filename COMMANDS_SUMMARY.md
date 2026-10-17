@@ -79,9 +79,17 @@
   - `create` - Create divisions for current season
     - `count` (required) - Number of divisions to create
     - Requires signups to be closed
-  - `assign-auto` - Automatically assign players to divisions by average (Div 1 = strongest)
-  - `preview-auto` - Preview auto-assignments without saving (signups can be open)
+  - `assign-auto` - Save the same protected-place plan used by the graphic preview. Requires closed signups and refuses protected-place/movement conflicts. Re-running it replaces existing assignments.
+  - `preview-auto` - Generate downloadable proposed-division graphics and player-by-player notes without saving (signups can be open)
     - `count` (required) - Number of divisions to preview
+    - `publish` (optional) - Post the proposal in this channel; default is private
+    - Example: `/divisions preview-auto count:4`
+    - Sizes differ by at most one, with extra places in lower divisions: 42 players across four divisions gives 10 / 10 / 11 / 11.
+    - Returning players keep their expected division where possible. Earned promotions and established relegations are protected even when adding divisions; the old lowest division is not retrospectively given relegation places.
+    - New players are placed by signup average. A shared assignment planner balances average fit against moving established players; each move carries a stability cost equivalent to a squared 10-point average gap. Moves beyond one division and protected-place capacity conflicts require manual review.
+    - Graphics show names, signup averages, previous movement, group averages/ranges, and average-fit review markers. Text notes explain each player’s placement.
+    - A gap of at least 10 points outside the average-only division band is flagged for review, including for protected players; protected movement is never silently reversed.
+    - Images paginate for large rosters. No divisions, assignments, results or published-message references are changed by previewing.
 
 #### `/division`
 - **Subcommands:**
