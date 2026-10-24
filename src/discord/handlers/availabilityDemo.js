@@ -9,16 +9,31 @@ const sessions = new Map();
 const TTL = 60 * 60 * 1000;
 const PREFIX = 'availability-demo:';
 const screens = new Set(['availability', 'extension', 'extension-request', 'admin']);
+// Example replies belong only to this test session; no opponent is contacted.
+function revealAfterAnswer(state) {
+    if (state.playerPreview && !state.other) {
+        state.other = 'Available';
+        state.otherDays = state.dates.days.slice(0, 2).map(day => day.value);
+        state.otherNote = 'Usually after 7';
+    }
+    if (state.other) state.revealed = true;
+}
 function prune() {
     for (const [id, state] of sessions) if (Date.now() >= state.expires) sessions.delete(id);
 }
-export function createAvailabilityDemo(ownerId, screen = 'availability') {
+function playerPreviewDates() {
+    const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/London', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
+    const release = new Date(today + 'T00:00:00Z');
+    release.setUTCDate(release.getUTCDate() + (7 - release.getUTCDay()) % 7);
+    return demoDeadlines(release.toISOString().slice(0, 10));
+}
+export function createAvailabilityDemo(ownerId, screen = 'availability', { playerPreview = false } = {}) {
     prune();
     if (sessions.size >= 200) throw new Error('Too many active demos. Try again later.');
     const state = {
-        id: randomUUID(), ownerId, screen: screens.has(screen) ? screen : 'availability',
+        id: randomUUID(), ownerId, playerPreview, screen: screens.has(screen) ? screen : 'availability',
         expires: Date.now() + TTL, own: null, other: null, revealed: false, ownDays: [], availableNote: '', otherDays: [], otherNote: '',
-        extensionRequested: false, extensionChoice: null, adminChoice: null, holiday: null, holidayReason: '', unavailableReason: '', dates: demoDeadlines(), extension: 'Awaiting your response', admin: 'Needs review', messageId: null,
+        extensionRequested: false, extensionChoice: null, adminChoice: null, holiday: null, holidayReason: '', unavailableReason: '', dates: playerPreview ? playerPreviewDates() : demoDeadlines(), extension: 'Awaiting your response', admin: 'Needs review', messageId: null,
     };
     sessions.set(state.id, state);
     return state;
@@ -44,7 +59,7 @@ export function availabilityDemoMessage(state) {
             choiceButton(state, 'available', 'Yes, I can play', state.own === 'Available', ButtonStyle.Success),
             choiceButton(state, 'unavailable', 'No, I can’t play', state.own === 'Not this week'),
             ...(state.own === 'Available' ? [button(state, 'edit-days', 'Edit my days')] : [])));
-        card.addActionRowComponents(row(button(state, 'holiday', state.holiday ? 'Holiday saved: ' + state.holiday + ' days' : 'I’m on holiday', state.holiday ? ButtonStyle.Primary : ButtonStyle.Secondary),
+        card.addActionRowComponents(row(button(state, 'holiday', state.holiday ? 'Away: ' + state.holiday + ' days saved' : 'Away / holiday', state.holiday ? ButtonStyle.Primary : ButtonStyle.Secondary),
             button(state, 'extension-request', state.extensionRequested ? 'View your request' : 'Ask for another week')));
         divider();
         card.addTextDisplayComponents(text('**Your answer:** ' + (state.own ?? 'Not answered yet') +
@@ -58,6 +73,7 @@ export function availabilityDemoMessage(state) {
         if (state.revealed && state.other === 'Available') {
             notes.push('**Player2’s days:** ' + (dayLabels(state.otherDays) || 'Not chosen yet'));
             if (state.otherNote) notes.push('**Player2’s note:** ' + escapeMarkdown(state.otherNote));
+            if (state.playerPreview && state.own === 'Available') notes.push('**Next step:** Contact Player2 to agree a day and time.');
         }
         if (state.extensionRequested) notes.push('### Extra time requested\nWaiting for Player2 to agree. Keep the original date for now.');
         if (state.holiday) notes.push('**Your holiday:** ' + state.holiday +
@@ -102,6 +118,11 @@ export function availabilityDemoMessage(state) {
             choiceButton(state, 'keep', 'Keep current date', state.adminChoice === 'keep'), button(state, 'history', state.history ? 'Hide history' : 'View history')));
         card.addTextDisplayComponents(text('**Decision:** ' + state.admin));
     }
+    if (state.playerPreview) return {
+        flags: MessageFlags.IsComponentsV2,
+        components: [text('**Practice match**\nPlayer2’s replies are examples. During the season, this message will show your real opponent’s answers once you both reply. Nothing here changes your league matches.'), card],
+        allowedMentions: { parse: [] },
+    };
     const testing = [text('-# SAMPLE DATA ONLY · Practice message · Lasts 1 hour')];
     if (state.screen === 'availability') testing.push(row(
         button(state, 'opponent', 'Try an opponent answer'), button(state, 'reset', 'Start again')));
@@ -134,7 +155,7 @@ export async function handleAvailabilityDemo(interaction) {
                 state.own = 'Available';
                 state.unavailableReason = '';
                 state.screen = 'availability';
-                if (state.other) state.revealed = true;
+                revealAfterAnswer(state);
                 await interaction.update(availabilityDemoMessage(state));
                 return true;
             }
@@ -146,7 +167,7 @@ export async function handleAvailabilityDemo(interaction) {
                 state.availableNote = '';
                 state.unavailableReason = reason;
                 state.screen = 'availability';
-                if (state.other) state.revealed = true;
+                revealAfterAnswer(state);
                 await interaction.update(availabilityDemoMessage(state));
                 return true;
             }
@@ -201,7 +222,7 @@ export async function handleAvailabilityDemo(interaction) {
             return true;
         }
         if (action === 'holiday') {
-            const modal = new ModalBuilder().setCustomId(`${PREFIX}${id}:holiday-submit`).setTitle('Your holiday (practice)')
+            const modal = new ModalBuilder().setCustomId(`${PREFIX}${id}:holiday-submit`).setTitle(state.playerPreview ? 'Your holiday' : 'Your holiday (practice)')
                 .addComponents(new ActionRowBuilder().addComponents(new TextInputBuilder()
                     .setCustomId('days').setLabel('Days away (1–14)').setStyle(TextInputStyle.Short)
                     .setRequired(true).setMaxLength(2).setPlaceholder('4')), reasonInput(state.holidayReason));

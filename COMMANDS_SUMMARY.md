@@ -98,6 +98,7 @@
     - Returning players keep their expected division where possible. Earned promotions and established relegations are protected even when adding divisions; the old lowest division is not retrospectively given relegation places.
     - New players are placed by signup average. A shared assignment planner balances average fit against moving established players; each move carries a stability cost equivalent to a squared 10-point average gap. Moves beyond one division and protected-place capacity conflicts require manual review.
     - Graphics show names, signup averages, previous movement, group averages/ranges, and average-fit review markers. Text notes explain each player’s placement.
+    - Option 1 also checks actual neighbouring groups for swaps: players must differ by at least 10 average points, each must fit the other group at least 2 points better against its other players, and the swap must reduce within-group average spread. Earned promotions/relegations stay protected, division sizes stay fixed, and returning players stay within one division of their expected place. Option 2 skips this refinement entirely.
     - A gap of at least 10 points outside the average-only division band is flagged for review, including for protected players; protected movement is never silently reversed.
     - Images paginate for large rosters. No divisions, assignments, results or published-message references are changed by previewing.
 
@@ -231,9 +232,10 @@
 ### `/availability-test`
 - Available to all server members: DMs the person running it with an interactive Discord card using Player1/Player2 sample data. Re-register commands when deploying to clear the old admin-only default permission.
 - Cards use Components V2 with coloured accents, headings, dividers and answer buttons inside the card. Practice controls sit separately below.
-- Optional `screen`: Weekly availability (default), Extension request, or Admin review. Navigation buttons switch between all three in the same DM.
+- Public `screen` options: Weekly availability (default), or an example extra-time request from the opponent. Admin examples are not offered to public testers.
+- The public test shows only normal player controls. A short practice introduction explains that the real opponent’s answers will appear during the season. After submitting either answer, a sample opponent reply appears automatically; no simulation/navigation buttons are shown. Example fixture dates cover a complete upcoming Sunday-to-Sunday week.
 - Saved answers show a prominent confirmation and mark the selected button. The opposite answer remains available to change your response. Holidays update their button label.
-- “Ask for another week” opens a date confirmation; “Send request” records a sample request awaiting the opponent’s agreement. “Try receiving a request” separately previews the opponent response screen.
+- “Ask for another week” opens a date confirmation; “Send request” records a sample request awaiting the opponent’s agreement. Use `screen:extension` to preview receiving a request from an opponent.
 - “Yes, I can play” opens optional tick boxes for dated days between fixture release and the Sunday deadline, plus an optional note. Closing the form leaves the answer unchanged. “Edit my days” reopens saved choices; the opponent’s days and note appear only after both players answer.
 - Weekly demo: answer, simulate the opponent replying, change answers, reset, or try the 1–14 day holiday form. Unavailable and holiday forms accept an optional reason.
 - Sample fixture release uses today in Europe/London. The standard deadline is the following Sunday (a Sunday release gets seven days); an extension adds another week. Deadlines show day and date without a time.

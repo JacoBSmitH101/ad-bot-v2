@@ -7,7 +7,7 @@ export const data = new SlashCommandBuilder()
     .setDMPermission(false)
     .addStringOption(option => option.setName('screen').setDescription('Which example would you like to try?')
         .addChoices({ name: 'Weekly availability', value: 'availability' },
-            { name: 'Extension request', value: 'extension' }, { name: 'Admin review', value: 'admin' }));
+            { name: 'Extra-time request from your opponent', value: 'extension' }));
 
 export async function execute(interaction) {
     if (!interaction.guildId) {
@@ -18,11 +18,12 @@ export async function execute(interaction) {
     let state;
     let sent = false;
     try {
-        state = createAvailabilityDemo(interaction.user.id, interaction.options.getString('screen') ?? 'availability');
+        const requested = interaction.options.getString('screen');
+        state = createAvailabilityDemo(interaction.user.id, requested === 'extension' ? 'extension' : 'availability', { playerPreview: true });
         const message = await interaction.user.send(availabilityDemoMessage(state));
         state.messageId = message.id;
         sent = true;
-        await interaction.editReply('Sent a sample to your DMs. Open it and choose your answer. Use “Try an opponent answer” to see what happens next.');
+        await interaction.editReply('Sent a sample match to your DMs. Try the buttons as you would during the season. Player2’s example reply appears after you answer.');
     } catch (error) {
         if (!sent && state) discardAvailabilityDemo(state.id);
         console.error('Could not send availability demo:', error);
