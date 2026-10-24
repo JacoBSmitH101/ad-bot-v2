@@ -208,3 +208,37 @@ test('command sends both clearly labelled graphics with one combined notes file'
     assert.deepEqual(message.files.map(file=>file.name),['division-proposal-balanced-1.png','division-proposal-history-1.png','division-proposal-notes.txt']);
     assert.equal(f.calls.names,1);assert.equal(f.calls.sends.length,0);
 });
+
+function outlierFixture() {
+    const signups=[],placementsByUser=new Map(),previousSignupIds=new Set();
+    const add=(id,avg,old=null,rank=null)=>{
+        signups.push({discord_user_id:id,avg_3dart:avg});
+        if(old){previousSignupIds.add(id);placementsByUser.set(id,[{divisionName:'Div '+old,divisionSortOrder:old,rank,of:10}]);}
+    };
+    [63.8,60.9,59,57,52.4,49.7,49.5,48.9].forEach((avg,i)=>add('upper-'+i,avg,1));
+    [49,48,45.7,45.7,43.7].forEach((avg,i)=>add('middle-'+i,avg,2));
+    add('promoted-a',52.2,2,1);add('promoted-b',48,2,2);add('relegated',41,2,9);
+    [42,41.6,38.9,37.3,36.7,33.9,29.7].forEach((avg,i)=>add('lower-'+i,avg,3));
+    add('promoted-c',39.6,3,1);add('promoted-d',40.4,3,2);
+    [62.2,55,54.2,51.4,50.1,50,48.2,47.9,43.6,41.3,41.2,40.7,40,40,36.5,34.3,29.9].forEach((avg,i)=>add('new-'+i,avg));
+    return {signups,count:4,placementsByUser,previousSignupIds,previousDivisions:[1,2,3].map(i=>({name:'Div '+i,sort_order:i}))};
+}
+test('balanced preview swaps a weak upper-group returner with a strong lower-group newcomer', () => {
+    const input=outlierFixture();const plan=buildDivisionProposal(input);
+    assert.deepEqual(plan.counts,[10,10,11,11]);
+    assert.equal(find(plan,'lower-5').proposal.divisionIndex,3);
+    assert.equal(find(plan,'new-7').proposal.divisionIndex,2);
+    assert.match(find(plan,'lower-5').proposal.detail,/Average-fit swap/);
+    assert.equal(plan.stats.promotions,4);
+    for(const id of ['promoted-a','promoted-b','promoted-c','promoted-d','relegated'])assert.equal(find(plan,id).proposal.divisionIndex,find(plan,id).proposal.expectedIndex);
+    assert.equal(new Set(plan.groups.flat().map(p=>p.discord_user_id)).size,42);
+    const history=buildDivisionProposal({...input,strategy:'history'});
+    assert.equal(find(history,'lower-5').proposal.divisionIndex,2);assert.equal(history.stats.moved,0);
+    assert(!history.groups.flat().some(p=>p.proposal.averageSwap));
+});
+test('outlier refinement is deterministic and never moves established players more than one division', () => {
+    const input=outlierFixture();const first=buildDivisionProposal(input);
+    const second=buildDivisionProposal({...input,signups:[...input.signups].reverse()});
+    assert.deepEqual(first.groups.map(g=>g.map(p=>p.discord_user_id)),second.groups.map(g=>g.map(p=>p.discord_user_id)));
+    for(const player of first.groups.flat())if(player.proposal.expectedIndex>=0)assert(Math.abs(player.proposal.divisionIndex-player.proposal.expectedIndex)<=1);
+});

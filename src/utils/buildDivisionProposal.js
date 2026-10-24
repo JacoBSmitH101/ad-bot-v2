@@ -39,6 +39,42 @@ function allocate(costs) {
     return result;
 }
 
+// Refine neighbouring divisions using their actual players, rather than only
+// average-ranked bands. A large inversion can merit a swap even when each
+// player sits inside a broad band. Small differences never trigger this pass.
+function improveAdjacentFit(groups) {
+    const mean = players => players.reduce((sum, p) => sum + Number(p.avg_3dart), 0) / players.length;
+    for (;;) {
+        let best = null;
+        for (let i = 0; i < groups.length - 1; i++) {
+            const upper = groups[i], lower = groups[i + 1];
+            if (upper.length < 2 || lower.length < 2) continue;
+            const upperMean = mean(upper), lowerMean = mean(lower);
+            for (let a = 0; a < upper.length; a++) for (let b = 0; b < lower.length; b++) {
+                const low = upper[a], high = lower[b];
+                if (low.proposal.locked || high.proposal.locked) continue;
+                if ((low.proposal.expectedIndex >= 0 && Math.abs(low.proposal.expectedIndex - (i + 1)) > 1) ||
+                    (high.proposal.expectedIndex >= 0 && Math.abs(high.proposal.expectedIndex - i) > 1)) continue;
+                const lowAvg = Number(low.avg_3dart), highAvg = Number(high.avg_3dart), difference = highAvg - lowAvg;
+                if (difference < 10) continue;
+                const upperPeers = (upperMean * upper.length - lowAvg) / (upper.length - 1);
+                const lowerPeers = (lowerMean * lower.length - highAvg) / (lower.length - 1);
+                const lowBenefit = Math.abs(lowAvg - upperPeers) - Math.abs(lowAvg - lowerPeers);
+                const highBenefit = Math.abs(highAvg - lowerPeers) - Math.abs(highAvg - upperPeers);
+                if (lowBenefit < 2 || highBenefit < 2) continue;
+                const improvement = 2 * difference * (upperMean - lowerMean) + difference ** 2 * (1 / upper.length + 1 / lower.length);
+                if (improvement > 0.000001 && (!best || improvement > best.improvement + 0.000001)) best = { i, a, b, improvement, lowAvg, highAvg };
+            }
+        }
+        if (!best) break;
+        const { i, a, b, lowAvg, highAvg } = best;
+        const low = groups[i][a], high = groups[i + 1][b];
+        low.proposal.averageSwap = 'Average-fit swap: ' + lowAvg.toFixed(1) + ' and ' + highAvg.toFixed(1) + '; both fit the other group better.';
+        high.proposal.averageSwap = low.proposal.averageSwap;
+        [groups[i][a], groups[i + 1][b]] = [high, low];
+    }
+}
+
 /** Read-only plan. Protected movement is based on the OLD division structure. */
 export function buildDivisionProposal({ signups, count, previousDivisions = [], placementsByUser = new Map(), previousSignupIds = new Set(), strategy = 'balanced' }) {
     if (!Number.isInteger(count) || count < 1 || count > 10) throw new DomainError('INVALID_COUNT', 'Choose 1–10 divisions.');
@@ -131,6 +167,7 @@ export function buildDivisionProposal({ signups, count, previousDivisions = [], 
     }));
     allocate(costs).forEach((slot, index) => groups[slots[slot]].push(remaining[index]));
     }
+    if (strategy === 'balanced') improveAdjacentFit(groups);
     const stats = { promotions: 0, relegations: 0, kept: 0, moved: 0, newcomers: 0, review: 0 };
     groups.forEach((group, i) => {
         group.forEach(player => {
@@ -149,6 +186,7 @@ export function buildDivisionProposal({ signups, count, previousDivisions = [], 
                 : info.reason === 'promoted' ? `Promoted from ${info.previousDivision}; place protected.`
                 : info.reason === 'relegated' ? `Relegated from ${info.previousDivision}; place protected.`
                 : info.reason === 'returning' ? `Stays in ${info.previousDivision}.` : (info.placementNote ?? 'Placed using signup average.');
+            if (info.averageSwap) info.detail += ' ' + info.averageSwap;
         });
         group.sort((a, b) => Number(b.avg_3dart) - Number(a.avg_3dart) || String(a.discord_user_id).localeCompare(String(b.discord_user_id)));
     });

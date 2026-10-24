@@ -235,3 +235,40 @@ test('checkbox submission parses through the installed Discord library and keeps
     assert.deepEqual(state.ownDays,[]);assert.equal(state.own,'Available');
     discardAvailabilityDemo(state.id);
 });
+
+test('public preview contains only player controls and explains real opponent replies', async () => {
+    const member=command(false); await execute(member);
+    const payload=member.calls.payload;
+    const json=JSON.stringify(payload);
+    assert.match(json,/Practice match/);
+    assert.match(json,/real opponent’s answers once you both reply/);
+    assert(!json.includes('Try an opponent answer'));
+    assert(!json.includes('Admin example'));
+    assert(!json.includes('Try receiving a request'));
+    assert(!json.includes('Start again'));
+    assert.match(json,/Away \/ holiday/);
+    const options=data.toJSON().options[0].choices;
+    assert(!options.some(option=>option.value==='admin'));
+});
+test('player preview shows an example opponent answer automatically after submit and keeps edits visible', async () => {
+    const state=createAvailabilityDemo('owner','availability',{playerPreview:true}); state.messageId='dm1';
+    assert.equal(state.dates.days.length,8,'example represents a full fixture week');
+    assert.equal(state.other,null); assert.equal(state.revealed,false);
+    const open=event(state,'available');await handleAvailabilityDemo(open);
+    assert.equal(state.own,null);assert.equal(state.other,null);
+    await handleAvailabilityDemo(event(state,'available-submit',{modal:true,selectedDays:[state.dates.days[2].value]}));
+    assert.equal(state.own,'Available');assert.equal(state.other,'Available');assert(state.revealed);
+    const rendered=JSON.stringify(availabilityDemoMessage(state));
+    assert.match(rendered,/Player2’s days/);assert.match(rendered,/Contact Player2 to agree a day and time/);
+    assert(!rendered.includes('Admin example'));
+    await handleAvailabilityDemo(event(state,'unavailable-submit',{modal:true}));
+    assert(state.revealed);assert.equal(state.other,'Available');
+    discardAvailabilityDemo(state.id);
+});
+test('unavailable submission also demonstrates the opponent reply without tester navigation', async () => {
+    const state=createAvailabilityDemo('owner','availability',{playerPreview:true});state.messageId='dm1';
+    await handleAvailabilityDemo(event(state,'unavailable-submit',{modal:true,reason:'Working'}));
+    assert.equal(state.own,'Not this week');assert.equal(state.other,'Available');assert(state.revealed);
+    assert(renderedButtons(state).some(button=>button.label==='Ask for another week'));
+    discardAvailabilityDemo(state.id);
+});
