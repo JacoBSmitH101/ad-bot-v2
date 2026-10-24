@@ -72,6 +72,13 @@
   - `assign-role` - Assign a role to every signed-up player (signups must be closed)
     - `role_id` (required) - Role ID (or role mention) to assign
 
+#### `/admin-dropout`
+- Removes another player from the current season signup list.
+- Usage: `/admin-dropout user:@Player`.
+- Administrator or configured league admin user/role only; works from any server channel.
+- Signups must be open. Sends a private confirmation and refreshes the published signup list.
+- If the list refresh fails after removal, the confirmation explains how to refresh it.
+
 ### Division Management
 
 #### `/divisions`
