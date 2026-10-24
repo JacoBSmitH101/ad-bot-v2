@@ -33,7 +33,7 @@ export function createAvailabilityDemo(ownerId, screen = 'availability', { playe
     const state = {
         id: randomUUID(), ownerId, playerPreview, screen: screens.has(screen) ? screen : 'availability',
         expires: Date.now() + TTL, own: null, other: null, revealed: false, ownDays: [], availableNote: '', otherDays: [], otherNote: '',
-        extensionRequested: false, extensionChoice: null, adminChoice: null, holiday: null, holidayReason: '', unavailableReason: '', dates: playerPreview ? playerPreviewDates() : demoDeadlines(), extension: 'Awaiting your response', admin: 'Needs review', messageId: null,
+        extensionRequested: false, extensionChoice: null, adminChoice: null, unavailableReason: '', dates: playerPreview ? playerPreviewDates() : demoDeadlines(), extension: 'Awaiting your response', admin: 'Needs review', messageId: null,
     };
     sessions.set(state.id, state);
     return state;
@@ -59,8 +59,7 @@ export function availabilityDemoMessage(state) {
             choiceButton(state, 'available', 'Yes, I can play', state.own === 'Available', ButtonStyle.Success),
             choiceButton(state, 'unavailable', 'No, I can’t play', state.own === 'Not this week'),
             ...(state.own === 'Available' ? [button(state, 'edit-days', 'Edit my days')] : [])));
-        card.addActionRowComponents(row(button(state, 'holiday', state.holiday ? 'Away: ' + state.holiday + ' days saved' : 'Away / holiday', state.holiday ? ButtonStyle.Primary : ButtonStyle.Secondary),
-            button(state, 'extension-request', state.extensionRequested ? 'View your request' : 'Ask for another week')));
+        card.addActionRowComponents(row(button(state, 'extension-request', state.extensionRequested ? 'View your request' : 'Ask for another week')));
         divider();
         card.addTextDisplayComponents(text('**Your answer:** ' + (state.own ?? 'Not answered yet') +
             '\n**Player2’s answer:** ' + other));
@@ -76,10 +75,7 @@ export function availabilityDemoMessage(state) {
             if (state.playerPreview && state.own === 'Available') notes.push('**Next step:** Contact Player2 to agree a day and time.');
         }
         if (state.extensionRequested) notes.push('### Extra time requested\nWaiting for Player2 to agree. Keep the original date for now.');
-        if (state.holiday) notes.push('**Your holiday:** ' + state.holiday +
-            ' days away. You still need to answer for this match. This does not add extra time.');
         if (state.unavailableReason) notes.push('**Your reason:** ' + escapeMarkdown(state.unavailableReason));
-        if (state.holidayReason) notes.push('**Holiday reason:** ' + escapeMarkdown(state.holidayReason));
         if (notes.length) card.addTextDisplayComponents(text(notes.join('\n\n')));
     } else if (state.screen === 'extension-request') {
         card.setAccentColor(0xfbbf24);
@@ -107,12 +103,11 @@ export function availabilityDemoMessage(state) {
         card.setAccentColor(0xfda4af);
         card.addTextDisplayComponents(text('## Admin review\n**Player3 vs Player4**\nPlayer3 requested another week. Player4 could not agree.'));
         divider();
-        card.addTextDisplayComponents(text('**Players’ answers**\nPlayer3: Not this week\nPlayer4: Available\n\n' +
-            '**Holiday**\nPlayer3: 4 days away, declared before the deadline.'));
+        card.addTextDisplayComponents(text('**Players’ answers**\nPlayer3: Not this week\nPlayer4: Available'));
         card.addTextDisplayComponents(text('**Current date:** ' + state.dates.original +
             '\n**With another week:** ' + state.dates.extended));
         card.addTextDisplayComponents(text('**Needs attention**\nPlayer3 has 3 unresolved matches to review.'));
-        if (state.history) card.addTextDisplayComponents(text('**History**\nHoliday declared\nBoth players answered\nPlayer3 requested another week\nPlayer4 could not agree'));
+        if (state.history) card.addTextDisplayComponents(text('**History**\nBoth players answered\nPlayer3 requested another week\nPlayer4 could not agree'));
         divider();
         card.addActionRowComponents(row(choiceButton(state, 'approve', 'Allow another week', state.adminChoice === 'approve', ButtonStyle.Success),
             choiceButton(state, 'keep', 'Keep current date', state.adminChoice === 'keep'), button(state, 'history', state.history ? 'Hide history' : 'View history')));
@@ -159,28 +154,16 @@ export async function handleAvailabilityDemo(interaction) {
                 await interaction.update(availabilityDemoMessage(state));
                 return true;
             }
-            if (!['holiday-submit', 'unavailable-submit'].includes(action)) return true;
-            const reason = interaction.fields.getTextInputValue('reason').trim().slice(0, 300);
-            if (action === 'unavailable-submit') {
-                state.own = 'Not this week';
-                state.ownDays = [];
-                state.availableNote = '';
-                state.unavailableReason = reason;
-                state.screen = 'availability';
-                revealAfterAnswer(state);
-                await interaction.update(availabilityDemoMessage(state));
+            if (action !== 'unavailable-submit') {
+                await interaction.reply({ content: 'That option is no longer available. Run /availability-test for the latest version.', flags: MessageFlags.Ephemeral });
                 return true;
             }
-            const raw = interaction.fields.getTextInputValue('days').trim();
-            const days = Number(raw);
-            if (!/^\d{1,2}$/.test(raw) || days < 1 || days > 14) {
-                await interaction.reply({ content: 'Use a whole number from 1 to 14 days. No holiday was recorded.', flags: MessageFlags.Ephemeral });
-                return true;
-            }
-            state.holiday = days;
-            state.holidayReason = reason;
+            state.own = 'Not this week';
+            state.ownDays = [];
+            state.availableNote = '';
+            state.unavailableReason = interaction.fields.getTextInputValue('reason').trim().slice(0, 300);
             state.screen = 'availability';
-            // Component-launched modal submissions update their originating DM.
+            revealAfterAnswer(state);
             await interaction.update(availabilityDemoMessage(state));
             return true;
         }
@@ -221,21 +204,13 @@ export async function handleAvailabilityDemo(interaction) {
             await interaction.showModal(modal);
             return true;
         }
-        if (action === 'holiday') {
-            const modal = new ModalBuilder().setCustomId(`${PREFIX}${id}:holiday-submit`).setTitle(state.playerPreview ? 'Your holiday' : 'Your holiday (practice)')
-                .addComponents(new ActionRowBuilder().addComponents(new TextInputBuilder()
-                    .setCustomId('days').setLabel('Days away (1–14)').setStyle(TextInputStyle.Short)
-                    .setRequired(true).setMaxLength(2).setPlaceholder('4')), reasonInput(state.holidayReason));
-            await interaction.showModal(modal);
-            return true;
-        }
         if (screens.has(action)) state.screen = action;
         else if (action === 'opponent') {
             state.other = state.other === 'Available' ? 'Not this week' : 'Available';
             state.otherDays = state.other === 'Available' ? state.dates.days.slice(0, 2).map(day => day.value) : [];
             state.otherNote = state.other === 'Available' ? 'Usually after 7' : '';
         }
-        else if (action === 'reset') Object.assign(state, { own: null, other: null, revealed: false, ownDays: [], availableNote: '', otherDays: [], otherNote: '', holiday: null, holidayReason: '', unavailableReason: '', extensionRequested: false, extensionChoice: null, adminChoice: null, extension: 'Awaiting your response', admin: 'Needs review', history: false });
+        else if (action === 'reset') Object.assign(state, { own: null, other: null, revealed: false, ownDays: [], availableNote: '', otherDays: [], otherNote: '', unavailableReason: '', extensionRequested: false, extensionChoice: null, adminChoice: null, extension: 'Awaiting your response', admin: 'Needs review', history: false });
         else if (action === 'send-extension') state.extensionRequested = true;
         else if (action === 'agree') state.extension = `Agreed. Play by ${state.dates.extended}`;
         else if (action === 'decline') state.extension = 'You couldn’t agree. An admin will need to help.';

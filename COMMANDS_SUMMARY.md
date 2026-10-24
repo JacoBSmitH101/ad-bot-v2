@@ -5,7 +5,7 @@
 ### `/signup`
 - **What it does:** Register for the current season with your 3-dart average
 - **Parameters:** `avg` (required) - Your 3-dart average (must be between 10.0-120.0)
-- **Notes:** 
+- **Notes:**
   - Can be used to update your average if you've already signed up
   - Must be used in the designated signups channel if one is configured
   - Only works when signups are open
@@ -234,11 +234,11 @@
 - Cards use Components V2 with coloured accents, headings, dividers and answer buttons inside the card. Practice controls sit separately below.
 - Public `screen` options: Weekly availability (default), or an example extra-time request from the opponent. Admin examples are not offered to public testers.
 - The public test shows only normal player controls. A short practice introduction explains that the real opponent’s answers will appear during the season. After submitting either answer, a sample opponent reply appears automatically; no simulation/navigation buttons are shown. Example fixture dates cover a complete upcoming Sunday-to-Sunday week.
-- Saved answers show a prominent confirmation and mark the selected button. The opposite answer remains available to change your response. Holidays update their button label.
+- Saved answers show a prominent confirmation and mark the selected button. The opposite answer remains available to change your response.
 - “Ask for another week” opens a date confirmation; “Send request” records a sample request awaiting the opponent’s agreement. Use `screen:extension` to preview receiving a request from an opponent.
 - “Yes, I can play” opens optional tick boxes for dated days between fixture release and the Sunday deadline, plus an optional note. Closing the form leaves the answer unchanged. “Edit my days” reopens saved choices; the opponent’s days and note appear only after both players answer.
-- Weekly demo: answer, simulate the opponent replying, change answers, reset, or try the 1–14 day holiday form. Unavailable and holiday forms accept an optional reason.
+- Weekly player flow: answer yes/no, optionally select days and add a note, edit days, or request another week. Unavailable responses accept an optional reason. Holiday tracking has been removed.
 - Sample fixture release uses today in Europe/London. The standard deadline is the following Sunday (a Sunday release gets seven days); an extension adds another week. Deadlines show day and date without a time.
-- Extension/admin buttons edit sample state only. No Supabase reads/writes, public posts, real opponent messages, results, holidays, or deadlines are changed.
+- Extension/admin buttons edit sample state only. No Supabase reads/writes, public posts, real opponent messages, results, or deadlines are changed.
 - Samples expire after one hour or a bot restart. Only the invoking user can interact with their sample.
 - Available after the normal command-registration and deployment steps. No separate database migration is needed.

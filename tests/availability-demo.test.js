@@ -33,12 +33,8 @@ test('unavailable form accepts empty or supplied reason and only changes answer 
     discardAvailabilityDemo(state.id);
 });
 
-test('holiday reason is optional and privacy explanation is removed', async () => {
+test('privacy explanation is removed and extension dates have no times', async () => {
     const state = createAvailabilityDemo('owner'); state.messageId = 'dm1';
-    const open = event(state, 'holiday'); await handleAvailabilityDemo(open);
-    assert.equal(open.calls.modal.toJSON().components[1].components[0].required, false);
-    await handleAvailabilityDemo(event(state, 'holiday-submit', {modal:true, reason:'Family trip'}));
-    assert.equal(state.holidayReason, 'Family trip');
     assert(!JSON.stringify(availabilityDemoMessage(state)).includes('Your answer stays private'));
     state.screen='extension';
     assert(!JSON.stringify(availabilityDemoMessage(state)).includes('20:00'));
@@ -47,12 +43,12 @@ test('holiday reason is optional and privacy explanation is removed', async () =
     discardAvailabilityDemo(state.id);
 });
 
-function event(state, action, { user = state.ownerId, modal = false, days = '4', reason = '', selectedDays = [], note = '', message = 'dm1' } = {}) {
+function event(state, action, { user = state.ownerId, modal = false, reason = '', selectedDays = [], note = '', message = 'dm1' } = {}) {
     const calls = {};
     return { calls, user: { id: user }, message: { id: message },
         customId: `availability-demo:${state.id}:${action}`,
         isButton: () => !modal, isModalSubmit: () => modal,
-        fields: { getField: (key, type) => { assert.equal(key, 'available-days'); assert.equal(type, 22); return {type:22,values:selectedDays}; }, getTextInputValue: key => key === 'days' ? days : key === 'available-note' ? note : reason },
+        fields: { getField: (key, type) => { assert.equal(key, 'available-days'); assert.equal(type, 22); return {type:22,values:selectedDays}; }, getTextInputValue: key => key === 'available-note' ? note : reason },
         reply: async x => { calls.reply = x; }, update: async x => { calls.update = x; },
         showModal: async x => { calls.modal = x; },
     };
@@ -61,7 +57,7 @@ test('all screens serialize as Discord cards with valid buttons', () => {
     assert.equal(data.toJSON().name, 'availability-test');
     for (const screen of ['availability', 'extension', 'extension-request', 'admin']) {
         const state = createAvailabilityDemo('owner', screen);
-        Object.assign(state, { holiday: 14, holidayReason: '*'.repeat(300), unavailableReason: '_'.repeat(300), history: true });
+        Object.assign(state, { unavailableReason: '_'.repeat(300), history: true });
         const message = availabilityDemoMessage(state);
         assert.equal(message.flags, 32768);
         assert.equal(message.embeds, undefined);
@@ -86,18 +82,6 @@ test('responses only reveal together and stay revealed after changes', async () 
     assert.equal(state.revealed, true);
     await handleAvailabilityDemo(event(state, 'reset'));
     assert.equal(state.revealed, false);
-    discardAvailabilityDemo(state.id);
-});
-test('holiday modal validates 1–14 without altering the weekly answer', async () => {
-    const state = createAvailabilityDemo('owner'); state.messageId = 'dm1';
-    const open = event(state, 'holiday'); await handleAvailabilityDemo(open);
-    assert.equal(open.calls.modal.toJSON().title, 'Your holiday (practice)');
-    for (const days of ['0','15','-1','2.5','xx']) {
-        const invalid = event(state, 'holiday-submit', { modal:true, days });
-        await handleAvailabilityDemo(invalid); assert(invalid.calls.reply); assert.equal(state.holiday,null);
-    }
-    const valid = event(state, 'holiday-submit', { modal:true }); await handleAvailabilityDemo(valid);
-    assert.equal(state.holiday,4); assert.equal(state.own,null); assert(valid.calls.update);
     discardAvailabilityDemo(state.id);
 });
 test('only the owner on the original message can use the demo; expired demos are rejected', async () => {
@@ -246,7 +230,7 @@ test('public preview contains only player controls and explains real opponent re
     assert(!json.includes('Admin example'));
     assert(!json.includes('Try receiving a request'));
     assert(!json.includes('Start again'));
-    assert.match(json,/Away \/ holiday/);
+    assert(!/holiday|away/i.test(json));
     const options=data.toJSON().options[0].choices;
     assert(!options.some(option=>option.value==='admin'));
 });
