@@ -9,6 +9,8 @@ const EnvSchema = z.object({
     SUPABASE_URL: z.string().url(),
     SUPABASE_SERVICE_ROLE_KEY: z.string().min(1),
 
+    AVAILABILITY_ENABLED: z.enum(['true', 'false']).default('false'),
+    AVAILABILITY_REVIEW_CHANNEL: z.string().optional(),
     SUPABASE_DB_SCHEMA: z.string().optional(),
     RESULTS_REVIEW_CHANNEL: z.string().optional(),
     ADMIN_USER_ID: z.string().optional(),
