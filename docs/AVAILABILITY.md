@@ -72,7 +72,7 @@ The standard date is the Sunday **after** fixture release. A Sunday release gets
 /availability-admin action:status week:1 view:text
 ```
 
-The status view defaults to private fixture graphics grouped by division, showing player replies, chosen days, play-by dates, extension state and DM failures. Failed users are listed first. Full private notes and match IDs are attached as text; use view:text for the original text display. It is restricted to the configured league admin user/role or a server administrator. Retry targets failed or unsent deliveries only, leaving successful recipients untouched. Use action:refresh to explicitly update all existing match cards. Failed sends retry in the background at intervals, within the active play-by period; restarting resumes stored work rather than losing answers.
+The status view defaults to private fixture graphics grouped by division, showing large green/red/amber player reply panels, chosen days, play-by dates, extension state and DM failures. Completed matches show a prominent score and confirmed/pending/disputed/void badge instead of looking like unanswered availability. Failed users are listed first. Full private notes and match IDs are attached as text; use view:text for the original text display. It is restricted to the configured league admin user/role or a server administrator. Retry targets failed or unsent deliveries only, leaving successful recipients untouched. Use action:refresh to explicitly update all existing match cards. Failed sends retry in the background at intervals, within the active play-by period; restarting resumes stored work rather than losing answers.
 
 After substitutions, re-release the affected week. The bot resets replies for changed pairings, rejects old participants' interactions, preserves the week's original date, and contacts the current players.
 
@@ -84,4 +84,4 @@ For rollback, set `AVAILABILITY_ENABLED=false` and restart. Keep the tables so r
 
 ## Verification
 
-131 automated checks passed, including PostgreSQL migration/workflow tests for both `public` and `dev`, UUID/numeric match IDs, repeated releases, reveal behavior, authorization, extension decisions, substitutions, reminder leases, delivery retries and overdue filtering.
+134 automated checks passed, including PostgreSQL migration/workflow tests for both `public` and `dev`, UUID/numeric match IDs, repeated releases, reveal behavior, authorization, extension decisions, substitutions, reminder leases, delivery retries and overdue filtering.

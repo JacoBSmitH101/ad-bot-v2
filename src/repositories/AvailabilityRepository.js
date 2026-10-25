@@ -37,7 +37,7 @@ export class AvailabilityRepository {
             .eq('match_id', String(matchId)).eq('user_id', userId).neq('status', 'sent'));
     }
     async fixtureMetadata(seasonId, week) {
-        return this.check(await this.db.from('matches').select('id,division_id,status,player_a_id,player_b_id')
+        return this.check(await this.db.from('matches').select('id,division_id,status,player_a_id,player_b_id,match_results(legs_a,legs_b)')
             .eq('season_id', seasonId).eq('week', week)) ?? [];
     }
     async activeExtensions(ids) {
