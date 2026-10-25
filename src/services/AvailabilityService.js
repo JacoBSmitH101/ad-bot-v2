@@ -47,22 +47,35 @@ export class AvailabilityService {
         try { await this.syncMatch(client, matchId); } catch (error) { console.error('Saved availability; DM refresh pending:', error.message); }
         return this.context(matchId, userId, admin, guildId);
     }
-    syncMatch(client, matchId, force = false) {
+    syncMatch(client, matchId, force = false, options = {}) {
         const prior = this.queues.get(String(matchId)) ?? Promise.resolve();
-        const task = prior.catch(() => {}).then(() => this._sync(client, matchId, force));
+        const task = prior.catch(() => {}).then(() => this._sync(client, matchId, force, options));
         this.queues.set(String(matchId), task);
         void task.finally(() => { if (this.queues.get(String(matchId)) === task) this.queues.delete(String(matchId)); }).catch(() => {});
         return task;
     }
-    async _sync(client, matchId, force) {
+    async _sync(client, matchId, force, { recipients = null, failedOnly = false } = {}) {
         const context = await this.context(matchId);
         if (context.season.status !== 'active' || context.match.status !== 'scheduled') return { failures: 0 };
-        let failures = 0;
+        let failures = 0, attempted = 0;
+        const deliveries = failedOnly ? await this.availability.messages([String(matchId)]) : [];
         for (const userId of [context.state.player_a_id, context.state.player_b_id]) {
-            if (String(userId).startsWith('FAKE_')) continue;
+            if (String(userId).startsWith('FAKE_') || (recipients && !recipients.includes(userId))) continue;
+            if (failedOnly) {
+                if (deliveries.some(delivery => delivery.user_id === userId && delivery.status === 'sent')) continue;
+                await this.availability.expedite(matchId, userId);
+            }
             const token = randomUUID();
-            const delivery = await this.availability.claim(matchId, userId, token, force);
+            const delivery = await this.availability.claim(matchId, userId, token, failedOnly ? false : force);
             if (!delivery) continue;
+            // Another worker may have recovered this delivery after our status
+            // read. Preserve its saved version and leave its Discord card alone.
+            if (failedOnly && delivery.status === 'sent') {
+                await this.availability.finish(matchId, userId, token, delivery.sent_version,
+                    { id: delivery.message_id, channelId: delivery.channel_id });
+                continue;
+            }
+            attempted++;
             let message = null;
             try {
                 if (delivery.message_id && delivery.channel_id) {
@@ -85,9 +98,11 @@ export class AvailabilityService {
                 console.warn('Availability DM needs retry:', matchId, userId, error.code ?? error.message);
             }
         }
-        await this.notifyReview(client, context.state);
-        await this.remindPlayers(client, context.state);
-        return { failures };
+        if (!failedOnly) {
+            await this.notifyReview(client, context.state);
+            await this.remindPlayers(client, context.state);
+        }
+        return { failures, attempted };
     }
     async remindPlayers(client, state) {
         for (const userId of [state.player_a_id, state.player_b_id]) {

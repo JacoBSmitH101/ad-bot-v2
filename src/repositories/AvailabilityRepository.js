@@ -32,6 +32,14 @@ export class AvailabilityRepository {
         if (!ids.length) return [];
         return this.check(await this.db.from('league_availability_messages').select('*').in('match_id', ids)) ?? [];
     }
+    async expedite(matchId, userId) {
+        this.check(await this.db.from('league_availability_messages').update({ retry_at: '1970-01-01T00:00:00Z' })
+            .eq('match_id', String(matchId)).eq('user_id', userId).neq('status', 'sent'));
+    }
+    async fixtureMetadata(seasonId, week) {
+        return this.check(await this.db.from('matches').select('id,division_id,status,player_a_id,player_b_id')
+            .eq('season_id', seasonId).eq('week', week)) ?? [];
+    }
     async activeExtensions(ids) {
         if (!ids.length) return [];
         const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/London', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());

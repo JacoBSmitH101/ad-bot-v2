@@ -68,9 +68,11 @@ The standard date is the Sunday **after** fixture release. A Sunday release gets
 /availability-admin action:keep match:MATCH_ID
 /availability-admin action:history match:MATCH_ID
 /availability-admin action:retry week:1
+/availability-admin action:refresh week:1
+/availability-admin action:status week:1 view:text
 ```
 
-The status view includes unanswered players, private notes, extension state, match IDs and failed DMs. It is restricted to the configured league admin user/role or a server administrator. Retry updates existing DMs and retries failures. Failed sends retry in the background at intervals, within the active play-by period; restarting resumes stored work rather than losing answers.
+The status view defaults to private fixture graphics grouped by division, showing player replies, chosen days, play-by dates, extension state and DM failures. Failed users are listed first. Full private notes and match IDs are attached as text; use view:text for the original text display. It is restricted to the configured league admin user/role or a server administrator. Retry targets failed or unsent deliveries only, leaving successful recipients untouched. Use action:refresh to explicitly update all existing match cards. Failed sends retry in the background at intervals, within the active play-by period; restarting resumes stored work rather than losing answers.
 
 After substitutions, re-release the affected week. The bot resets replies for changed pairings, rejects old participants' interactions, preserves the week's original date, and contacts the current players.
 
@@ -82,4 +84,4 @@ For rollback, set `AVAILABILITY_ENABLED=false` and restart. Keep the tables so r
 
 ## Verification
 
-120 automated checks passed, including PostgreSQL migration/workflow tests for both `public` and `dev`, UUID/numeric match IDs, repeated releases, reveal behavior, authorization, extension decisions, substitutions, reminder leases, delivery retries and overdue filtering.
+131 automated checks passed, including PostgreSQL migration/workflow tests for both `public` and `dev`, UUID/numeric match IDs, repeated releases, reveal behavior, authorization, extension decisions, substitutions, reminder leases, delivery retries and overdue filtering.
