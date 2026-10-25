@@ -574,6 +574,13 @@ export class MatchRepository {
             .order("division_id", { ascending: true });
 
         if (error) throw error;
+        if (this.availabilityEnabled && this.availability && data?.length) {
+            const extended = new Map((await this.availability.activeExtensions(data.map(match => match.id))).map(row => [row.match_id, row]));
+            return data.filter(match => {
+                const extension = extended.get(String(match.id));
+                return !extension || extension.player_a_id !== match.player_a_id || extension.player_b_id !== match.player_b_id;
+            });
+        }
         return data ?? [];
     }
 

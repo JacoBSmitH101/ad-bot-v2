@@ -24,6 +24,7 @@
     "zod": "^4.2.1"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "^0.5.11",
     "better-docs": "^2.7.3",
     "clean-jsdoc-theme": "^4.3.0",
     "jsdoc": "^4.0.5"

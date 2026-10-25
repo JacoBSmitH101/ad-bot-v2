@@ -1,3 +1,6 @@
+import { AvailabilityRepository } from './repositories/AvailabilityRepository.js';
+import { AvailabilityService } from './services/AvailabilityService.js';
+import { handleAvailability } from './discord/handlers/availability.js';
 import { handleAvailabilityDemo } from './discord/handlers/availabilityDemo.js';
 import "dotenv/config";
 import fs from "fs";
@@ -66,6 +69,7 @@ const internalApi = new InternalApiClient({
     internalKey: env.INTERNAL_API_KEY,
 });
 client.repos = {
+    availability: new AvailabilityRepository({ supabase, schema }),
     seasons: new SeasonRepository({ supabase, schema }),
     players: new PlayersRepository({ supabase, schema }),
     signups: new SignupRepository({ supabase, schema }),
@@ -76,6 +80,9 @@ client.repos = {
     divisionPlayers: new DivisionPlayersRepository({ supabase, schema }),
     substitutions: new PlayerSubstitutionsRepository({ supabase, schema }),
 };
+
+client.repos.matches.availability = client.repos.availability;
+client.repos.matches.availabilityEnabled = env.AVAILABILITY_ENABLED === 'true';
 
 const matchStatsService = new MatchStatsService({
     internalApi,
@@ -175,6 +182,13 @@ client.services.statsLeadersPublisher = new StatsLeadersPublisherService({
     players: client.repos.players,
 });
 
+client.services.availability = new AvailabilityService({
+    availability: client.repos.availability, seasons: client.repos.seasons,
+    matches: client.repos.matches, players: client.repos.players,
+    enabled: env.AVAILABILITY_ENABLED === 'true',
+    reviewChannelId: env.AVAILABILITY_REVIEW_CHANNEL || env.RESULTS_REVIEW_CHANNEL || null,
+});
+
 // Load commands (execute handlers) from files
 client.commands = new Collection();
 
@@ -209,6 +223,12 @@ for (const file of commandFiles) {
 client.once(Events.ClientReady, async () => {
     console.log(`✅ Logged in as ${client.user.tag}`);
 
+    if (client.services.availability.enabled) {
+        const retry = () => client.services.availability.retryPending(client).catch(error => console.error('Availability worker:', error.message));
+        void retry();
+        const timer = setInterval(retry, 60_000);
+        timer.unref();
+    }
     // Refresh published messages after restart so they stay in sync
     for (const guild of client.guilds.cache.values()) {
         await client.services.signupsPublisher
@@ -223,6 +243,7 @@ client.once(Events.ClientReady, async () => {
 });
 
 client.on(Events.InteractionCreate, async (interaction) => {
+    if (await handleAvailability(interaction)) return;
     if (await handleAvailabilityDemo(interaction)) return;
     if (interaction.isButton()) {
         if (await handleResultButtons(interaction)) return;

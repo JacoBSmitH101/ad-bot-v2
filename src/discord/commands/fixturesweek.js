@@ -1,3 +1,4 @@
+import { triggerAvailability } from '../../services/AvailabilityService.js';
 import {
     SlashCommandBuilder,
     PermissionFlagsBits,
@@ -53,8 +54,9 @@ export async function execute(interaction) {
             week,
         });
 
+        const availabilityNotice = await triggerAvailability(interaction.client, interaction.guildId, week);
         await interaction.editReply(
-            `✅ Fixtures display updated to Week **${week}**.`
+            `✅ Fixtures display updated to Week **${week}**.` + (availabilityNotice ? `\n${availabilityNotice}` : '')
         );
     } catch (err) {
         if (err instanceof DomainError) {

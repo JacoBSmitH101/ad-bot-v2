@@ -242,3 +242,18 @@
 - Extension/admin buttons edit sample state only. No Supabase reads/writes, public posts, real opponent messages, results, or deadlines are changed.
 - Samples expire after one hour or a bot restart. Only the invoking user can interact with their sample.
 - Available after the normal command-registration and deployment steps. No separate database migration is needed.
+
+## Real match availability
+
+Requires the matching Supabase migration and AVAILABILITY_ENABLED=true. Full rollout details: docs/AVAILABILITY.md.
+
+- /fixturespublish week:1 releases real availability once the season is active. /fixturesweek week:2 etc. releases subsequent weeks. Starting a season with already-published fixtures releases that published week; ordinary result-driven fixture refreshes never release DMs.
+- Repeating a release preserves its original date and saved replies, and updates existing DMs.
+- /availability [week] gives the caller a private real match card, including when DMs are closed. Only participants can answer their own side. Replies survive restarts; opponent answers/days become visible only once both respond and stay revealed after edits.
+- No holiday feature or automatic forfeits. Optional unavailable reasons stay with the player and admins.
+- The first extension is one week after the original Sunday deadline, approved after the opponent agrees on/before the original date. Late/repeated requests, refusals and help requests go to admin review. Pending requests never extend the date. Extra time can be granted once per fixture and is reflected in overdue lists.
+- One reminder after 48 hours for unanswered players; delivery failures retry during the play-by period.
+- /availability-admin action:status [week] lists responses, private notes, dates, review requests, match IDs and failed DMs.
+- /availability-admin action:approve match:ID or action:keep decides a pending/review request. action:history match:ID lists changes; action:retry [week] retries/updates DMs. All are admin-only and private.
+- Optional AVAILABILITY_REVIEW_CHANNEL receives extra-time review notices; defaults to RESULTS_REVIEW_CHANNEL. Without either channel, use the admin status command.
+- /availability-test remains sample-only and cannot change real availability.

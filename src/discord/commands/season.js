@@ -1,3 +1,4 @@
+import { triggerAvailability } from '../../services/AvailabilityService.js';
 import {
     SlashCommandBuilder,
     PermissionFlagsBits,
@@ -78,8 +79,10 @@ export async function execute(interaction) {
         const season = await interaction.client.services.seasons.startSeason({
             guildId: interaction.guildId,
         });
+        const availabilityNotice = season.fixtures_channel_id && season.fixtures_message_id
+            ? await triggerAvailability(interaction.client, interaction.guildId, season.fixtures_week ?? 1) : '';
         await interaction.editReply(
-            `🚦 Season started: **${season.name}** (week 1)`
+            `🚦 Season started: **${season.name}** (week 1)` + (availabilityNotice ? `\n${availabilityNotice}` : '')
         );
     }
 
