@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import sharp from 'sharp';
-import { buildAvailabilityAdminModel, renderAvailabilityAdminImages, deliveryReason } from '../src/services/AvailabilityAdminImageRenderer.js';
+import { buildAvailabilityAdminModel, renderAvailabilityAdminImages, deliveryReason, availabilityOutcome } from '../src/services/AvailabilityAdminImageRenderer.js';
 import { execute, data } from '../src/discord/commands/availability-admin.js';
 
 function fixture(total = 2) {
@@ -97,4 +97,35 @@ test('many delivery failures fit Discord’s message limit without hiding the re
 test('delivery codes get neutral, readable descriptions', () => {
     assert.equal(deliveryReason('50278'), 'No shared server'); assert.equal(deliveryReason('50007'), 'DM could not be sent');
     assert.equal(deliveryReason('something'), 'Delivery error');
+});
+
+test('confirmed scores preserve player order and zero legs for object and array results', () => {
+    for(const result of [{legs_a:4,legs_b:0},[{legs_a:'4',legs_b:'0'}]]){
+        const outcome=availabilityOutcome({status:'confirmed',match_results:result});
+        assert(outcome.closed);assert(outcome.confirmed);assert.deepEqual(outcome.score,[4,0]);assert.match(outcome.label,/COMPLETE/);
+    }
+    const missing=availabilityOutcome({status:'confirmed',match_results:null});
+    assert(missing.closed);assert.equal(missing.score,null,'missing scores must not become a fictional 0–0');
+});
+test('pending, disputed and void results cannot appear as confirmed wins', () => {
+    for(const status of ['reported','disputed']){
+        const outcome=availabilityOutcome({status,match_results:{legs_a:2,legs_b:4}});
+        assert(outcome.closed);assert.equal(outcome.confirmed,false);assert.deepEqual(outcome.score,[2,4]);
+    }
+    assert.match(availabilityOutcome({status:'reported'}).label,/PENDING/);
+    assert.match(availabilityOutcome({status:'disputed'}).label,/DISPUTED/);
+    const voided=availabilityOutcome({status:'void',match_results:{legs_a:0,legs_b:0}});
+    assert(voided.closed);assert.equal(voided.score,null);assert.match(voided.label,/VOID/);
+    assert.equal(availabilityOutcome({status:'scheduled',match_results:{legs_a:null,legs_b:null}}).closed,false);
+});
+test('played matches render their results even when neither player answered availability', async () => {
+    const input=fixture(4);
+    const statuses=['confirmed','reported','disputed','void'];
+    input.matches.forEach((match,i)=>{match.status=statuses[i];match.match_results=i<3?{legs_a:4,legs_b:i}:null});
+    input.states.forEach(state=>{state.a_response=null;state.b_response=null});
+    const model=buildAvailabilityAdminModel(input);
+    assert(model.groups[0].fixtures.every(fixture=>fixture.outcome.closed));
+    assert.equal(model.groups[0].fixtures[0].outcome.confirmed,true);
+    const images=await renderAvailabilityAdminImages(model);assert.equal(images.length,1);
+    assert.equal((await sharp(images[0].png).metadata()).width,1280);
 });

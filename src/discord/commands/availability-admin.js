@@ -1,4 +1,4 @@
-import { buildAvailabilityAdminModel, renderAvailabilityAdminImages, deliveryReason } from '../../services/AvailabilityAdminImageRenderer.js';
+import { buildAvailabilityAdminModel, renderAvailabilityAdminImages, deliveryReason, availabilityOutcome } from '../../services/AvailabilityAdminImageRenderer.js';
 import { SlashCommandBuilder, MessageFlags, PermissionFlagsBits, AttachmentBuilder, escapeMarkdown } from 'discord.js';
 
 export const data = new SlashCommandBuilder().setName('availability-admin').setDescription('[ADMIN] Review availability, extra-time requests and failed DMs')
@@ -64,10 +64,12 @@ export async function execute(interaction) {
         service.availability.fixtureMetadata(season.id, week),
         interaction.client.repos.divisions.listBySeason(season.id),
     ]);
+    const matchById = new Map(matches.map(match => [String(match.id), match]));
     const lines = states.map(state => {
+        const outcome = availabilityOutcome(matchById.get(String(state.match_id)));
         const failures = messages.filter(message => message.match_id === state.match_id && message.status === 'failed');
         const days = side => state[side + '_days']?.length ? state[side + '_days'].join(', ') : 'not chosen';
-        return '**' + state.match_id + '**\n<@' + state.player_a_id + '>: ' + (state.a_response ?? 'waiting') + ' · <@' + state.player_b_id + '>: ' + (state.b_response ?? 'waiting') +
+        return '**' + state.match_id + '**' + (outcome.closed ? '\n' + outcome.label + (outcome.score ? ': ' + outcome.score.join('–') : '') : '') + '\n<@' + state.player_a_id + '>: ' + (state.a_response ?? 'waiting') + ' · <@' + state.player_b_id + '>: ' + (state.b_response ?? 'waiting') +
             '\nDays: ' + days('a') + ' / ' + days('b') + '\nPlay by ' + state.effective_due_on + ' · Extra time: ' + state.extension_status +
             (state.a_note || state.b_note ? '\nNotes (admin only): ' + [state.a_note, state.b_note].map(note => escapeMarkdown(note.slice(0, 300)) || '—').join(' / ') : '') +
             (failures.length ? '\nFailed DMs: ' + failures.map(message => '<@' + message.user_id + '> — ' + deliveryReason(message.last_error) + ' (' + message.last_error + ')').join(', ') : '');
