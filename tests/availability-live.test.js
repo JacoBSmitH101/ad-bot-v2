@@ -195,3 +195,29 @@ test('one claimed reminder sends a simple prompt and records completion', async 
     await f.service.remindPlayers(f.client,f.state);await f.service.remindPlayers(f.client,f.state);
     assert.equal(f.sends.length,1);assert.equal(done,1);assert.match(f.sends[0].payload.content,/Reminder/);assert(f.sends[0].payload.enforceNonce);
 });
+
+test('failed-only sync leaves successful recipients untouched, even if their card version is older', async () => {
+    const f=fixture(); f.state.version=2;
+    f.deliveries.set('a',{match_id:'match1',user_id:'a',status:'sent',sent_version:1,message_id:'dm-a',channel_id:'channel-a'});
+    f.deliveries.set('b',{match_id:'match1',user_id:'b',status:'failed',sent_version:0,last_error:'50278'});
+    const expedited=[];
+    f.repo.expedite=async(match,user)=>expedited.push(user);
+    f.repo.reminder=async()=>{throw Error('A failed-only retry must not generate reminders')};
+    const result=await f.service.syncMatch(f.client,'match1',false,{recipients:['a','b'],failedOnly:true});
+    assert.equal(result.attempted,1);assert.equal(result.failures,0);assert.deepEqual(expedited,['b']);
+    assert.deepEqual(f.sends.map(send=>send.user),['b']);assert.equal(f.edits.length,0);
+    assert.equal(f.deliveries.get('a').sent_version,1);
+});
+
+test('failed-only retry does not touch a recipient recovered by another worker after the status read', async () => {
+    const f=fixture();f.state.version=2;
+    f.repo.messages=async()=>[{match_id:'match1',user_id:'b',status:'failed'}];
+    f.repo.expedite=async()=>{};
+    f.repo.claim=async(_,user,token)=>{
+        const row={match_id:'match1',user_id:user,status:'sent',sent_version:1,message_id:'recovered',channel_id:'channel',token};
+        f.deliveries.set(user,row);return row;
+    };
+    const result=await f.service.syncMatch(f.client,'match1',false,{recipients:['b'],failedOnly:true});
+    assert.equal(result.attempted,0);assert.equal(f.sends.length,0);assert.equal(f.edits.length,0);
+    assert.equal(f.deliveries.get('b').sent_version,1);
+});

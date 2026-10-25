@@ -253,7 +253,7 @@ Requires the matching Supabase migration and AVAILABILITY_ENABLED=true. Full rol
 - No holiday feature or automatic forfeits. Optional unavailable reasons stay with the player and admins.
 - The first extension is one week after the original Sunday deadline, approved after the opponent agrees on/before the original date. Late/repeated requests, refusals and help requests go to admin review. Pending requests never extend the date. Extra time can be granted once per fixture and is reflected in overdue lists.
 - One reminder after 48 hours for unanswered players; delivery failures retry during the play-by period.
-- /availability-admin action:status [week] lists responses, private notes, dates, review requests, match IDs and failed DMs.
-- /availability-admin action:approve match:ID or action:keep decides a pending/review request. action:history match:ID lists changes; action:retry [week] retries/updates DMs. All are admin-only and private.
+- /availability-admin action:status [week] produces private fixture/availability graphics by division with replies, days, dates, extensions and DM failures. Failed users appear first; notes and match IDs are attached as text. Add view:text for the original text report.
+- /availability-admin action:approve match:ID or action:keep decides a pending/review request. action:history match:ID lists changes; action:retry [week] retries failed or unsent deliveries only; action:refresh [week] explicitly updates all existing cards. Successful recipients are left alone by retry. All are admin-only and private.
 - Optional AVAILABILITY_REVIEW_CHANNEL receives extra-time review notices; defaults to RESULTS_REVIEW_CHANNEL. Without either channel, use the admin status command.
 - /availability-test remains sample-only and cannot change real availability.
